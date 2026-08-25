@@ -14,7 +14,7 @@ translates on publish.
 |---|---|
 | **What we're building** | A Strapi v5 plugin: bulk AI translation from the Content Manager list view, with multi-provider/multi-model configuration and optional auto-translate on publish. |
 | **Why not off-the-shelf** | The existing OSS plugin is single-document and doesn't save. Strapi's own built-in AI localization is hosted-only with no provider or model choice. Details below. |
-| **Biggest technical risk** | The AI SDK is ESM-only; the plugin server bundle is CommonJS. **Investigated and resolved** — see [Build](#build-the-esmcjs-question-settled). One tsconfig change is mandatory. |
+| **Biggest technical risk** | The AI SDK is ESM-only; the plugin server bundle is CommonJS. **Resolved and proven in the Phase 0 spike** — the dynamic import survives the CommonJS emit. No tsconfig change is needed; the boundary is enforced by a postbuild assertion instead, because no compiler setting catches a static import. See [Build](#build-the-esmcjs-question-settled). |
 | **Host prerequisite** | `ENCRYPTION_KEY` must be added to the host Strapi project before API keys can be stored. Not something the plugin can do for itself. |
 | **MVP lands at** | Phase 2 of 5. Phases 0–1 are foundation. |
 | **Deferred past 1.0** | Continuous monitoring and cost reporting are specified here but built after the initial public release. |
@@ -486,34 +486,37 @@ level**:
 const { generateObject } = await import('ai');
 ```
 
-### The real problem is TypeScript, not the bundler
+### CORRECTION: the TypeScript problem does not exist
 
-`@strapi/typescript-utils/tsconfigs/server` — which `server/tsconfig.json` extends — sets:
+An earlier draft of this plan claimed that the stock Strapi server tsconfig
+(`"module": "CommonJS"`, `"moduleResolution": "Node"`) would fail to typecheck against the AI SDK,
+because node10-style resolution cannot read `exports` maps and the SDK publishes its types only
+through `exports["."].types`. **That was wrong**, and it was disproved during the Phase 0 spike.
 
-```json
-{ "module": "CommonJS", "moduleResolution": "Node" }
-```
+`ai@7.0.79` and every `@ai-sdk/*` package ship a **legacy top-level `"types"` field** alongside the
+exports map, and additionally ship root-level shim declarations (`ai/test.d.ts`, `ai/internal.d.ts`)
+so even subpath imports resolve under node10. Typechecking passes under the stock config, including
+`import('ai/test')`. No tsconfig override is needed, and none is used — `server/tsconfig.json`
+extends Strapi's config unmodified.
 
-`moduleResolution: "Node"` is node10-style resolution, which **cannot read `exports` maps**. `ai` and
-every `@ai-sdk/*` publish their types *only* through `exports["."].types`. So `npm run test:ts:back`
-(`tsc -p server/tsconfig.json`) will fail with *"Cannot find module 'ai' or its corresponding type
-declarations"* — a concrete failure, not a hypothetical one.
+### The real hazard, and what actually guards it
 
-Fix by overriding both options in the plugin's own `server/tsconfig.json`:
+The genuine risk was never type resolution. It is that a **static top-level import of the AI SDK
+compiles and typechecks cleanly, then throws `ERR_REQUIRE_ESM` when Strapi loads the plugin.** The
+SDK declares a `default` export condition, so TypeScript believes it is requireable from CommonJS.
 
-```json
-{
-  "extends": "@strapi/typescript-utils/tsconfigs/server",
-  "compilerOptions": { "module": "Preserve", "moduleResolution": "Bundler" }
-}
-```
+No compiler configuration catches this. Verified during the spike against three combinations —
+`Preserve`/`Bundler`, `NodeNext`/`NodeNext`, and the stock `CommonJS`/`Node`: **all three accept the
+broken static import without complaint.**
 
-Both must change together — TS 5 rejects `module: CommonJS` with `moduleResolution: Bundler`.
+So the boundary is enforced where it can actually be observed — in the build output. A postbuild
+assertion fails the build if the server bundle calls `require()` on any ESM-only package, if the
+dynamic `import("ai")` stops surviving the CommonJS emit, or if the SDK leaks into the admin bundle.
+It is verified by sabotage: introducing a static import fails the build with a message pointing at
+the fix.
 
-This is safe **because tsc never emits JS in this pipeline**: Vite/esbuild produce the JS and
-`vite-plugin-dts` emits only declarations. That's also the trap to avoid — if anyone later routes the
-build through `tsc` for emit, `module: CommonJS` would downlevel `await import()` into `require()` and
-break at runtime with `ERR_REQUIRE_ESM`.
+All SDK access funnels through a single module, so there is exactly one file where the rule can be
+broken and one place to change if the packaging story shifts.
 
 ### Two smaller notes
 

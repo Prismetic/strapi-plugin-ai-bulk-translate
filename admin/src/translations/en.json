@@ -1,0 +1,5 @@
+{
+  "ai-bulk-translate.plugin.name": "AI Bulk Translate",
+  "ai-bulk-translate.plugin.page.title": "AI Bulk Translate",
+  "ai-bulk-translate.plugin.page.subtitle": "Configure providers, models and translation settings for bulk AI translation."
+}

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.strapi/
+*.tsbuildinfo
+.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+coverage/
+.yalc/
+yalc.lock

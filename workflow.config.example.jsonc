@@ -40,7 +40,7 @@
   // These mirror the values set in `.sandcastle/main.ts` / `interactive.ts`.
   // Update them here for documentation AND in those files (the runner reads them there).
   "loop": {
-    "model": "claude-opus-4-6",                        // agent model slug
+    "model": "claude-opus-5",                        // agent model slug
     "maxIterations": 3,                                // max tasks per run (1 task/iteration)
     "completionSignal": "<promise>NO MORE TASKS</promise>", // stops the loop when emitted
     "sandbox": "docker"                                // "docker" (main.ts) | "none" (interactive.ts)

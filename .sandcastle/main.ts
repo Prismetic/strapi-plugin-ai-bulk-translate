@@ -4,7 +4,7 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 // Sandboxed / unattended run. Works only afk-labelled issues, one task per iteration,
 // stopping when it emits the completion signal.
 await run({
-  agent: claudeCode("claude-opus-4-6"),
+  agent: claudeCode("claude-opus-5"),
   sandbox: docker(),
   promptFile: "./.sandcastle/prompt.md",
   maxIterations: 3,
