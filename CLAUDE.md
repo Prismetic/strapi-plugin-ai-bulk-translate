@@ -1,0 +1,33 @@
+# Project agent guide
+
+This repo uses the AI Workflow Harness. Before doing anything, understand how work flows here.
+
+## Configuration
+
+All stack-specific settings live in [workflow.config.json](workflow.config.json):
+
+- `feedback` — the commands to run before every commit (`test`, `typecheck`, `lint`, `build`). An empty string means "skip this one".
+- `labels` — the GitHub labels that drive the autonomous loop (`afk`, `hitl`, `critical`).
+- `conventionsFile` — the file that holds this project's coding conventions (default `CONVENTIONS.md`).
+
+Read this file first so you run the right commands for this project.
+
+## Skills
+
+Skills live in `.claude/skills/`. Load them by name:
+
+- `kickoff` — turn a plain-language idea into a ready-to-run backlog (PRD + sliced issues). Start here for a new project or feature.
+- `to-prd`, `prd-to-issues` — planning: idea to PRD to vertical-slice issues.
+- `do-work` — execute one issue end-to-end (plan, implement, validate with the configured feedback commands, commit).
+- `coding-standards` — load/derive this project's conventions before writing or reviewing code.
+- `improve-codebase-architecture`, `grill-me`, `handoff`, `write-a-skill` — architecture, plan stress-testing, session handoff, and authoring new skills.
+
+## Autonomous loop
+
+`.sandcastle/` runs the AFK loop: it works only `afk`-labelled GitHub issues, one per iteration, validating with the configured feedback commands before committing. See [.sandcastle/prompt.md](.sandcastle/prompt.md).
+
+## Golden rules
+
+- Prefer `afk`; reserve `hitl` for scope, architecture, risky changes, QA sign-off, and merges.
+- Coding conventions come from `coding-standards` — never invent a new style.
+- One task per loop iteration.
