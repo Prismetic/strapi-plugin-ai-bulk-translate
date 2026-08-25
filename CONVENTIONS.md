@@ -61,10 +61,14 @@ loads the plugin. No tsconfig catches it (verified against three module/resoluti
 
 Two hosts are used for verification, and they are not the same:
 
-| Host | Strapi | Node | Port |
-|---|---|---|---|
-| `R&D/CMS multi-locale` | 5.27.0 | **22** (`engines: >=18 <=22.x`) | 1340 |
-| `ITE/CMS-V5` | 5.49.0 | — | — |
+| Host | Strapi | Node | Port | `ENCRYPTION_KEY` |
+|---|---|---|---|---|
+| `R&D/CMS multi-locale` | 5.27.0 | **22** (`engines: >=18 <=22.x`) | 1340 | ✅ set and wired in `config/admin.ts` |
+| `ITE/CMS-V5` | 5.49.0 | — | — | ❌ absent from both `.env` and `config/admin` |
+
+Develop credential work against **CMS multi-locale** — it is the host where `admin::encryption` can
+actually produce ciphertext. Key length does not matter: the service SHA-256 hashes whatever it is
+given, so any non-empty value works and only a missing key causes `encrypt()` to return `null`.
 
 - **Run host projects under Node 22 via nvm**, not the machine default (currently v25). Under Node 25
   the host fails to boot: `better-sqlite3` is compiled for `NODE_MODULE_VERSION 127` and Node 25 wants
