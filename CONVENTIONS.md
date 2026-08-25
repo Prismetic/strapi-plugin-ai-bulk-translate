@@ -57,6 +57,27 @@ loads the plugin. No tsconfig catches it (verified against three module/resoluti
 - A guard that has never failed is not a guard. Verify assertions by deliberately breaking the thing
   they protect, as `assert-esm-boundary.mjs` was verified.
 
+## Host projects and Node
+
+Two hosts are used for verification, and they are not the same:
+
+| Host | Strapi | Node | Port |
+|---|---|---|---|
+| `R&D/CMS multi-locale` | 5.27.0 | **22** (`engines: >=18 <=22.x`) | 1340 |
+| `ITE/CMS-V5` | 5.49.0 | — | — |
+
+- **Run host projects under Node 22 via nvm**, not the machine default (currently v25). Under Node 25
+  the host fails to boot: `better-sqlite3` is compiled for `NODE_MODULE_VERSION 127` and Node 25 wants
+  141. Rebuild the native module and you break it for everyone using the supported version — switch
+  Node instead.
+- The plugin's `peerDependencies` floor is `@strapi/strapi ^5.27.0`, the lower of the two hosts.
+  `addBulkAction`, `admin::encryption` and `populate-builder` were all confirmed present at 5.27, so
+  nothing in the plan requires a newer floor.
+- `@strapi/i18n` at 5.27 has **no** `ai-localizations` service, so the coexistence guard is a no-op on
+  that host. Test it against CMS-V5, where the built-in feature exists.
+- React is pinned to 18 and react-router-dom to 6 to match both hosts. `@strapi/icons` peers on
+  React 18, so React 19 will not install.
+
 ## Commits
 
 - Explain the decision, not the diff. Say why, and note anything the next iteration should know.
