@@ -39,6 +39,8 @@ export interface PublicProvider {
 
 const providerStore = ({ strapi }: { strapi: Core.Strapi }) => {
   const crypto = () => strapi.plugin('ai-bulk-translate').service('crypto');
+  // Resolved lazily, so the two stores can reference each other without an import cycle.
+  const modelStore = () => strapi.plugin('ai-bulk-translate').service('model-store');
   const query = () => strapi.db.query(PROVIDER_UID);
 
   const toPublic = (row: ProviderRow): PublicProvider => ({
@@ -112,10 +114,17 @@ const providerStore = ({ strapi }: { strapi: Core.Strapi }) => {
 
       const row = (await query().update({ where: { id }, data })) as ProviderRow;
 
+      // A disabled connection cannot answer, so nothing registered under it can be offered any
+      // more. Cascading here rather than at the call site means it holds for every writer.
+      if (input.enabled === false && existing.enabled) {
+        await modelStore().disableForProvider(id);
+      }
+
       return toPublic(row);
     },
 
     async delete(id: number): Promise<void> {
+      await modelStore().deleteForProvider(id);
       await query().delete({ where: { id } });
     },
   };
