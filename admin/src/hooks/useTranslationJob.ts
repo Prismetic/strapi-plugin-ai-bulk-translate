@@ -32,6 +32,8 @@ export interface JobRequest {
   documentIds: string[];
   overwriteDocumentIds?: string[];
   modelId?: number | null;
+  /** Which surface started the run. Recorded on the job for audit; grants nothing. */
+  origin?: 'document' | 'bulk';
 }
 
 const POLL_INTERVAL_MS = 2000;
@@ -93,6 +95,37 @@ export const useTranslationJob = () => {
     [post]
   );
 
+  /**
+   * Re-runs only the failed items of a finished run.
+   *
+   * Reuses the same job rather than starting a new one, so the run keeps a single audit record and
+   * the successful items are visibly untouched rather than silently repeated.
+   */
+  const retry = useCallback(async () => {
+    if (!job) {
+      return;
+    }
+
+    setError(null);
+    setIsStarting(true);
+
+    try {
+      const { data } = await post<{ data: Job }>(`/${PLUGIN_ID}/jobs/${job.id}/retry`, {});
+
+      if (isMounted.current) {
+        setJob(data.data);
+      }
+    } catch (caught) {
+      if (isMounted.current) {
+        setError(errorFrom(caught, 'Could not retry the failed items.'));
+      }
+    } finally {
+      if (isMounted.current) {
+        setIsStarting(false);
+      }
+    }
+  }, [job, post]);
+
   useEffect(() => {
     if (!job || !isRunning(job.status)) {
       return;
@@ -120,7 +153,10 @@ export const useTranslationJob = () => {
     error,
     isStarting,
     isRunning: job ? isRunning(job.status) : false,
+    /** How many items failed, so a caller can offer a retry only when there is something to retry. */
+    failedCount: job?.progress.failed ?? 0,
     start,
+    retry,
     reset: () => {
       setJob(null);
       setError(null);

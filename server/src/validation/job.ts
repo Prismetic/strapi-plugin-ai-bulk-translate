@@ -17,6 +17,11 @@ export const jobCreateSchema = z.object({
   /** The subset of entries the user authorised for overwrite; the per-entry UI arrives later. */
   overwriteDocumentIds: z.array(z.string().trim().min(1)).optional(),
   modelId: z.number().int().positive().nullish(),
+  /**
+   * Which surface started the run. An audit label on the job record, not a permission — the server
+   * derives nothing from it, so a wrong value misreports history and grants nothing.
+   */
+  origin: z.enum(['document', 'bulk']).optional(),
 });
 
 export type JobCreateInput = z.infer<typeof jobCreateSchema>;

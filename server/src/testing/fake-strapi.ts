@@ -129,7 +129,13 @@ export const createFakeStrapi = ({
     db,
     log: { error: log('error'), warn: log('warn'), info: log('info'), debug: log('debug') },
     config: {
-      get: (key: string) => config[key.replace('plugin::ai-bulk-translate.', '')],
+      // Mirrors Strapi's own signature: a missing key falls back to the caller's default rather
+      // than undefined, so code reading config with a default behaves the same here as in a host.
+      get: (key: string, fallback?: unknown) => {
+        const stripped = key.replace('plugin::ai-bulk-translate.', '');
+
+        return stripped in config ? config[stripped] : fallback;
+      },
     },
     plugin: () => ({ service: (name: string) => registry[name] }),
   } as unknown as Core.Strapi;

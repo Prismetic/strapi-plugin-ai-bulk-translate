@@ -20,6 +20,8 @@ interface TranslateModalProps {
   contentType: string;
   documentIds: string[];
   sourceLocale: string;
+  /** Which surface opened this. Recorded on the job for audit; grants nothing. */
+  origin?: 'document' | 'bulk';
   onClose: () => void;
 }
 
@@ -42,11 +44,12 @@ const TranslateModal = ({
   contentType,
   documentIds,
   sourceLocale,
+  origin = 'document',
   onClose,
 }: TranslateModalProps) => {
   const { formatMessage } = useIntl();
   const { locales, isLoading } = useLocales();
-  const { job, error, isStarting, isRunning, start } = useTranslationJob();
+  const { job, error, isStarting, isRunning, failedCount, start, retry } = useTranslationJob();
   const [{ query }, setQuery] = useQueryParams<Record<string, unknown>>();
 
   const [selected, setSelected] = useState<string[]>([]);
@@ -58,7 +61,8 @@ const TranslateModal = ({
       current.includes(code) ? current.filter((entry) => entry !== code) : [...current, code]
     );
 
-  const submit = () => start({ contentType, documentIds, sourceLocale, targetLocales: selected });
+  const submit = () =>
+    start({ contentType, documentIds, sourceLocale, targetLocales: selected, origin });
 
   /**
    * Sends the edit view to a translated locale. This is also what refreshes the Content Manager's
@@ -197,6 +201,19 @@ const TranslateModal = ({
               id: getTranslation('translate.confirm'),
               defaultMessage: 'Translate',
             })}
+          </Button>
+        ) : null}
+
+        {job && !isRunning && failedCount > 0 ? (
+          <Button variant="secondary" loading={isStarting} onClick={retry}>
+            {formatMessage(
+              {
+                id: getTranslation('translate.retry'),
+                defaultMessage:
+                  'Retry {count, plural, one {# failed item} other {# failed items}}',
+              },
+              { count: failedCount }
+            )}
           </Button>
         ) : null}
 

@@ -1,3 +1,5 @@
+import { mapWithLimit } from './concurrency';
+
 import type { Core } from '@strapi/strapi';
 import type { JobItem, PublicJob } from './job-store';
 import type { ResolvedModel } from './model-store';
@@ -13,9 +15,13 @@ import type { ResolvedModel } from './model-store';
  * **Items are isolated.** One document failing records an error against that item and the run
  * carries on. A batch of twenty is not worth discarding because the third entry has a bad value.
  *
- * Items run sequentially here. The concurrency cap in configuration is honoured by the bulk slice,
- * which is where running many at once is the point; doing it now would add a moving part the tracer
- * cannot exercise.
+ * **Items run concurrently, up to `maxConcurrency`.** Twenty entries across three locales is sixty
+ * model calls; issuing them all at once is how a provider rate-limits you and how a mis-clicked run
+ * spends a lot very fast. A fixed-size pool keeps the request rate the same whether the editor
+ * selected two entries or two hundred.
+ *
+ * **Only `pending` items are worked.** That is what makes retry cheap: reset the failed ones and run
+ * the same job again, and the successes are left alone rather than translated and paid for twice.
  */
 const jobRunner = ({ strapi }: { strapi: Core.Strapi }) => {
   const plugin = () => strapi.plugin('ai-bulk-translate');
@@ -74,7 +80,7 @@ const jobRunner = ({ strapi }: { strapi: Core.Strapi }) => {
           'No usable model is configured. Register a model under an enabled provider connection ' +
           'and mark one as the default.';
 
-        for (const item of job.items) {
+        for (const item of job.items.filter((i) => i.status === 'pending')) {
           await jobs().updateItem(jobId, item.documentId, item.locale, {
             status: 'failed',
             error: reason,
@@ -84,9 +90,13 @@ const jobRunner = ({ strapi }: { strapi: Core.Strapi }) => {
         return jobs().finish(jobId);
       }
 
-      for (const item of job.items) {
-        await runItem(job, item, resolved);
-      }
+      // Only pending items: on a retry the successful ones must not be repeated.
+      const pending = job.items.filter((item) => item.status === 'pending');
+      const limit = Number(strapi.config.get('plugin::ai-bulk-translate.maxConcurrency', 3));
+
+      // mapWithLimit never rejects — a throwing item is recorded against that item by runItem, and
+      // the rest of the run continues.
+      await mapWithLimit<JobItem, void>(pending, limit, (item) => runItem(job, item, resolved));
 
       return jobs().finish(jobId);
     },

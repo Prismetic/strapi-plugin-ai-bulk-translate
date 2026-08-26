@@ -45,4 +45,5 @@ export default [
   },
   { method: 'POST', path: '/jobs', handler: 'job.create', config: { policies: [] } },
   { method: 'GET', path: '/jobs/:id', handler: 'job.findOne', config: { policies: [] } },
+  { method: 'POST', path: '/jobs/:id/retry', handler: 'job.retry', config: { policies: [] } },
 ];

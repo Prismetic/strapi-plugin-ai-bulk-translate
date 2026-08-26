@@ -160,6 +160,50 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
     },
 
     /**
+     * Puts failed items back to `pending` so a retry re-runs only those.
+     *
+     * Translated and skipped items are left as they are: re-running a success would pay for the
+     * same translation twice and overwrite a locale the editor may have edited since. Returns how
+     * many items were reset, so a caller can refuse a retry that would do nothing.
+     */
+    async resetFailedItems(id: number): Promise<number> {
+      let reset = 0;
+
+      await serialize(id, async () => {
+        const row = (await query().findOne({ where: { id } })) as JobRow | null;
+
+        if (!row) {
+          return;
+        }
+
+        const items = (row.items ?? []).map((item) => {
+          if (item.status !== 'failed') {
+            return item;
+          }
+
+          reset += 1;
+
+          // The previous error is dropped rather than kept: leaving it on a pending item would
+          // show a stale failure next to work that is running again.
+          return { documentId: item.documentId, locale: item.locale, status: 'pending' as const };
+        });
+
+        // Only reopen the job if something was actually reset. Moving a job with no failures back
+        // to `queued` would strand it: the caller refuses to start a run with nothing to do, and
+        // the job would sit claiming to be pending work that does not exist.
+        const data: Record<string, unknown> = { items, updatedAt: new Date() };
+
+        if (reset > 0) {
+          data.status = 'queued';
+        }
+
+        await query().update({ where: { id }, data });
+      });
+
+      return reset;
+    },
+
+    /**
      * Marks the run finished. `failed` only when nothing succeeded — a run where some items failed
      * still completed, and per-item errors say which. Reporting the whole run as failed would hide
      * the work that did land.

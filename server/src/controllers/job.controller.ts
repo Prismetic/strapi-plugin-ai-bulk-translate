@@ -82,7 +82,7 @@ const jobController = {
     const job = await plugin()
       .service('job-store')
       .create({
-        origin: 'document',
+        origin: input.origin ?? 'document',
         contentType: input.contentType,
         sourceLocale: input.sourceLocale,
         targetLocales: input.targetLocales,
@@ -96,6 +96,39 @@ const jobController = {
 
     ctx.status = 201;
     ctx.body = { data: job };
+  },
+
+  /**
+   * Re-runs only the failed items of a finished run.
+   *
+   * Successful and skipped items are left alone. Re-translating a success would pay for the same
+   * output twice and overwrite a locale the editor may have corrected since the run — which is
+   * exactly what someone reaching for "retry" after a transient provider error does not want.
+   */
+  async retry(ctx: Context) {
+    const id = Number(ctx.params.id);
+    const jobs = plugin().service('job-store');
+    const job = await jobs.findOne(id);
+
+    if (!job) {
+      ctx.status = 404;
+      ctx.body = { error: { message: 'Job not found' } };
+      return;
+    }
+
+    if (job.status === 'processing' || job.status === 'queued') {
+      return badRequest(ctx, 'This run is still in progress. Wait for it to finish before retrying.');
+    }
+
+    const reset = await jobs.resetFailedItems(id);
+
+    if (reset === 0) {
+      return badRequest(ctx, 'Nothing to retry — no items in this run failed.');
+    }
+
+    plugin().service('job-runner').start(id);
+
+    ctx.body = { data: await jobs.findOne(id), retrying: reset };
   },
 
   async findOne(ctx: Context) {

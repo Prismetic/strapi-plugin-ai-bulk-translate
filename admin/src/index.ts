@@ -1,5 +1,6 @@
 import { Initializer } from './components/Initializer';
 import { PluginIcon } from './components/PluginIcon';
+import { TranslateBulkAction } from './components/translate/TranslateBulkAction';
 import { TranslateDocumentAction } from './components/translate/TranslateDocumentAction';
 import { PLUGIN_ID } from './pluginId';
 
@@ -28,11 +29,13 @@ export default {
   },
 
   bootstrap(app: any) {
-    // The list-view bulk action is registered here by a later slice; the edit-view action is the
-    // only surface for now.
-    app
-      .getPlugin('content-manager')
-      .apis.addDocumentAction((actions: unknown[]) => [...actions, TranslateDocumentAction]);
+    const contentManager = app.getPlugin('content-manager').apis;
+
+    // Edit view: collection types and single types.
+    contentManager.addDocumentAction((actions: unknown[]) => [...actions, TranslateDocumentAction]);
+
+    // List view: collection types only — single types have no list view.
+    contentManager.addBulkAction((actions: unknown[]) => [...actions, TranslateBulkAction]);
   },
 
   async registerTrads({ locales }: { locales: string[] }) {
