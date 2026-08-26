@@ -7,13 +7,26 @@ import type { RegisteredModel } from '../../hooks/useModels';
 
 interface ModelCardProps {
   model: RegisteredModel;
+  /**
+   * Whether the viewer holds `settings.update`. Without it the card is read-only: which models
+   * exist, and which is default, stay visible — that is what an editor picking a model needs — but
+   * nothing that would change them is offered.
+   */
+  canManage: boolean;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onMakeDefault: () => void;
   onDelete: () => void;
 }
 
-const ModelCard = ({ model, onEdit, onToggleEnabled, onMakeDefault, onDelete }: ModelCardProps) => {
+const ModelCard = ({
+  model,
+  canManage,
+  onEdit,
+  onToggleEnabled,
+  onMakeDefault,
+  onDelete,
+}: ModelCardProps) => {
   const { formatMessage } = useIntl();
 
   return (
@@ -52,36 +65,38 @@ const ModelCard = ({ model, onEdit, onToggleEnabled, onMakeDefault, onDelete }: 
                   })}
             </Badge>
           </Flex>
-          <Flex gap={1}>
-            <Button variant="tertiary" size="S" startIcon={<Pencil />} onClick={onEdit}>
-              {formatMessage({ id: getTranslation('action.edit'), defaultMessage: 'Edit' })}
-            </Button>
-            <Button
-              variant="tertiary"
-              size="S"
-              startIcon={<Star />}
-              disabled={model.isDefault || !model.enabled || !model.providerEnabled}
-              onClick={onMakeDefault}
-            >
-              {formatMessage({
-                id: getTranslation('models.makeDefault'),
-                defaultMessage: 'Make default',
-              })}
-            </Button>
-            <Button
-              variant="tertiary"
-              size="S"
-              onClick={() => onToggleEnabled(!model.enabled)}
-              disabled={!model.enabled && !model.providerEnabled}
-            >
-              {model.enabled
-                ? formatMessage({ id: getTranslation('action.disable'), defaultMessage: 'Disable' })
-                : formatMessage({ id: getTranslation('action.enable'), defaultMessage: 'Enable' })}
-            </Button>
-            <Button variant="danger-light" size="S" startIcon={<Trash />} onClick={onDelete}>
-              {formatMessage({ id: getTranslation('action.delete'), defaultMessage: 'Delete' })}
-            </Button>
-          </Flex>
+          {canManage ? (
+            <Flex gap={1}>
+              <Button variant="tertiary" size="S" startIcon={<Pencil />} onClick={onEdit}>
+                {formatMessage({ id: getTranslation('action.edit'), defaultMessage: 'Edit' })}
+              </Button>
+              <Button
+                variant="tertiary"
+                size="S"
+                startIcon={<Star />}
+                disabled={model.isDefault || !model.enabled || !model.providerEnabled}
+                onClick={onMakeDefault}
+              >
+                {formatMessage({
+                  id: getTranslation('models.makeDefault'),
+                  defaultMessage: 'Make default',
+                })}
+              </Button>
+              <Button
+                variant="tertiary"
+                size="S"
+                onClick={() => onToggleEnabled(!model.enabled)}
+                disabled={!model.enabled && !model.providerEnabled}
+              >
+                {model.enabled
+                  ? formatMessage({ id: getTranslation('action.disable'), defaultMessage: 'Disable' })
+                  : formatMessage({ id: getTranslation('action.enable'), defaultMessage: 'Enable' })}
+              </Button>
+              <Button variant="danger-light" size="S" startIcon={<Trash />} onClick={onDelete}>
+                {formatMessage({ id: getTranslation('action.delete'), defaultMessage: 'Delete' })}
+              </Button>
+            </Flex>
+          ) : null}
         </Flex>
 
         <Flex gap={4} alignItems="center">

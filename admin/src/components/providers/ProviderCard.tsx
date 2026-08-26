@@ -9,6 +9,13 @@ import type { Provider, ProviderDefinition } from '../../hooks/useProviders';
 interface ProviderCardProps {
   provider: Provider;
   definition?: ProviderDefinition;
+  /**
+   * Whether the viewer holds `settings.update`. Without it the card is read-only: the endpoint and
+   * key state stay visible, because `settings.read` is what put the viewer on this page, but every
+   * control the server would refuse is withheld. Test Connection counts as a write — it spends
+   * provider credit and is gated behind `settings.update` server-side.
+   */
+  canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onToggleEnabled: (enabled: boolean) => void;
@@ -18,6 +25,7 @@ interface ProviderCardProps {
 const ProviderCard = ({
   provider,
   definition,
+  canManage,
   onEdit,
   onDelete,
   onToggleEnabled,
@@ -61,23 +69,25 @@ const ProviderCard = ({
                   })}
             </Badge>
           </Flex>
-          <Flex gap={1}>
-            <Button variant="tertiary" size="S" startIcon={<Pencil />} onClick={onEdit}>
-              {formatMessage({ id: getTranslation('action.edit'), defaultMessage: 'Edit' })}
-            </Button>
-            <Button
-              variant="tertiary"
-              size="S"
-              onClick={() => onToggleEnabled(!provider.enabled)}
-            >
-              {provider.enabled
-                ? formatMessage({ id: getTranslation('action.disable'), defaultMessage: 'Disable' })
-                : formatMessage({ id: getTranslation('action.enable'), defaultMessage: 'Enable' })}
-            </Button>
-            <Button variant="danger-light" size="S" startIcon={<Trash />} onClick={onDelete}>
-              {formatMessage({ id: getTranslation('action.delete'), defaultMessage: 'Delete' })}
-            </Button>
-          </Flex>
+          {canManage ? (
+            <Flex gap={1}>
+              <Button variant="tertiary" size="S" startIcon={<Pencil />} onClick={onEdit}>
+                {formatMessage({ id: getTranslation('action.edit'), defaultMessage: 'Edit' })}
+              </Button>
+              <Button
+                variant="tertiary"
+                size="S"
+                onClick={() => onToggleEnabled(!provider.enabled)}
+              >
+                {provider.enabled
+                  ? formatMessage({ id: getTranslation('action.disable'), defaultMessage: 'Disable' })
+                  : formatMessage({ id: getTranslation('action.enable'), defaultMessage: 'Enable' })}
+              </Button>
+              <Button variant="danger-light" size="S" startIcon={<Trash />} onClick={onDelete}>
+                {formatMessage({ id: getTranslation('action.delete'), defaultMessage: 'Delete' })}
+              </Button>
+            </Flex>
+          ) : null}
         </Flex>
 
         <Flex gap={4} alignItems="center">
@@ -95,29 +105,37 @@ const ProviderCard = ({
           </Typography>
         </Flex>
 
-        <Flex gap={2} alignItems="flex-end">
-          <Box flex="1">
-            <TextInput
+        {canManage ? (
+          <Flex gap={2} alignItems="flex-end">
+            <Box flex="1">
+              <TextInput
+                size="S"
+                aria-label={formatMessage({
+                  id: getTranslation('providers.testModel'),
+                  defaultMessage: 'Model to test with',
+                })}
+                placeholder={formatMessage({
+                  id: getTranslation('providers.testModel.placeholder'),
+                  defaultMessage: 'Model to test with, e.g. gpt-5.4-mini',
+                })}
+                value={modelId}
+                onChange={(e: { target: { value: string } }) => setModelId(e.target.value)}
+              />
+            </Box>
+            <Button
+              variant="secondary"
               size="S"
-              aria-label={formatMessage({
-                id: getTranslation('providers.testModel'),
-                defaultMessage: 'Model to test with',
+              loading={testing}
+              disabled={!modelId}
+              onClick={runTest}
+            >
+              {formatMessage({
+                id: getTranslation('providers.test'),
+                defaultMessage: 'Test connection',
               })}
-              placeholder={formatMessage({
-                id: getTranslation('providers.testModel.placeholder'),
-                defaultMessage: 'Model to test with, e.g. gpt-5.4-mini',
-              })}
-              value={modelId}
-              onChange={(e: { target: { value: string } }) => setModelId(e.target.value)}
-            />
-          </Box>
-          <Button variant="secondary" size="S" loading={testing} disabled={!modelId} onClick={runTest}>
-            {formatMessage({
-              id: getTranslation('providers.test'),
-              defaultMessage: 'Test connection',
-            })}
-          </Button>
-        </Flex>
+            </Button>
+          </Flex>
+        ) : null}
 
         {result ? (
           <Flex gap={2} alignItems="flex-start">

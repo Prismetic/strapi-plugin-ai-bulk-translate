@@ -6,6 +6,7 @@ import { useIntl } from 'react-intl';
 import { getTranslation } from '../../utils/getTranslation';
 import { useModels, type RegisteredModel } from '../../hooks/useModels';
 import { useProviders } from '../../hooks/useProviders';
+import { useSettingsPermission } from '../../hooks/useSettingsPermission';
 import { ModelCard } from './ModelCard';
 import { ModelFormModal } from './ModelFormModal';
 
@@ -14,6 +15,7 @@ const ModelsSection = () => {
   const { models, isLoading, error, dismissError, create, update, remove, setDefault } =
     useModels();
   const { providers, catalog, refresh: refreshProviders } = useProviders();
+  const { canManage } = useSettingsPermission();
 
   const [editing, setEditing] = useState<RegisteredModel | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -64,17 +66,22 @@ const ModelsSection = () => {
               'Models editors can choose from. One can be the default, used when no choice is made.',
           })}
         </Typography>
-        <Button
-          startIcon={<Plus />}
-          size="S"
-          disabled={eligible.length === 0}
-          onClick={openAddModal}
-        >
-          {formatMessage({ id: getTranslation('models.add'), defaultMessage: 'Register model' })}
-        </Button>
+        {canManage ? (
+          <Button
+            startIcon={<Plus />}
+            size="S"
+            disabled={eligible.length === 0}
+            onClick={openAddModal}
+          >
+            {formatMessage({ id: getTranslation('models.add'), defaultMessage: 'Register model' })}
+          </Button>
+        ) : null}
       </Flex>
 
-      {eligible.length === 0 ? (
+      {/* Withheld from read-only viewers: it is advice to go and fix something they have no way of
+          fixing. They still get "No models registered yet" below, which is the part that is true
+          for them. */}
+      {canManage && eligible.length === 0 ? (
         <Typography variant="pi" textColor="neutral600">
           {formatMessage({
             id: getTranslation('models.noConnections'),
@@ -96,6 +103,7 @@ const ModelsSection = () => {
           <ModelCard
             key={model.id}
             model={model}
+            canManage={canManage}
             onEdit={() => setEditing(model)}
             onToggleEnabled={(enabled) => update(model.id, { enabled }).catch(() => undefined)}
             onMakeDefault={() => setDefault(model.id).catch(() => undefined)}

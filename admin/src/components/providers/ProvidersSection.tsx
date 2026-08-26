@@ -5,6 +5,7 @@ import { useIntl } from 'react-intl';
 
 import { getTranslation } from '../../utils/getTranslation';
 import { useProviders, type Provider } from '../../hooks/useProviders';
+import { useSettingsPermission } from '../../hooks/useSettingsPermission';
 import { ProviderCard } from './ProviderCard';
 import { ProviderFormModal } from './ProviderFormModal';
 
@@ -12,6 +13,7 @@ const ProvidersSection = () => {
   const { formatMessage } = useIntl();
   const { providers, catalog, encryptionAvailable, isLoading, create, update, remove, test } =
     useProviders();
+  const { canManage } = useSettingsPermission();
 
   const [editing, setEditing] = useState<Provider | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -50,17 +52,19 @@ const ProvidersSection = () => {
               'Connections to LLM providers. Keys are encrypted before storage and never shown again.',
           })}
         </Typography>
-        <Button
-          startIcon={<Plus />}
-          size="S"
-          disabled={!encryptionAvailable}
-          onClick={() => setIsAdding(true)}
-        >
-          {formatMessage({
-            id: getTranslation('providers.add'),
-            defaultMessage: 'Add provider',
-          })}
-        </Button>
+        {canManage ? (
+          <Button
+            startIcon={<Plus />}
+            size="S"
+            disabled={!encryptionAvailable}
+            onClick={() => setIsAdding(true)}
+          >
+            {formatMessage({
+              id: getTranslation('providers.add'),
+              defaultMessage: 'Add provider',
+            })}
+          </Button>
+        ) : null}
       </Flex>
 
       {providers.length === 0 ? (
@@ -76,6 +80,7 @@ const ProvidersSection = () => {
             key={provider.id}
             provider={provider}
             definition={catalog.find((entry) => entry.type === provider.type)}
+            canManage={canManage}
             onEdit={() => setEditing(provider)}
             onDelete={() => remove(provider.id)}
             onToggleEnabled={(enabled) => update(provider.id, { enabled })}
