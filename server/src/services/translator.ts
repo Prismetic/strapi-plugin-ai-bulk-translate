@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 import { loadAiSdk } from './ai-sdk';
-import { extractFields, type TranslatableField } from './field-extractor';
+import { chunkFields, joinParts, type FieldPart } from './chunker';
+import { extractFields, type ComponentSchemas, type TranslatableField } from './field-extractor';
+import { buildLocalePayload } from './locale-payload';
 import { reinject } from './path-codec';
 
 import type { Core } from '@strapi/strapi';
@@ -30,13 +32,21 @@ type PopulateBuilder = (uid: string) => {
   populateDeep: (depth: number) => { build: () => Promise<unknown> };
 };
 
+interface UidService {
+  generateUIDField: (input: {
+    contentTypeUID: string;
+    field: string;
+    data: Record<string, unknown>;
+    locale: string;
+  }) => Promise<string>;
+}
+
 /**
  * Model keys are synthetic (`f0`, `f1`, …) rather than the field paths themselves.
  *
- * Paths contain dots and array indices — `Sections.3.Data.0.Heading` once nesting lands — and
- * making those JSON property names in a strict structured-output schema invites per-provider
- * quirks for no benefit. The mapping back is exact, and the prompt still names each field so the
- * model has the context.
+ * Paths contain dots and array indices — `Sections.3.Data.0.Heading` — and making those JSON
+ * property names in a strict structured-output schema invites per-provider quirks for no benefit.
+ * The mapping back is exact, and the prompt still names each field so the model has the context.
  */
 const keyFor = (index: number): string => `f${index}`;
 
@@ -79,6 +89,62 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
     }
   };
 
+  /**
+   * Regenerates identifier fields for the target locale from the *translated* target field.
+   *
+   * Copying the source locale's slug would leave every language sharing one URL in the source
+   * language, which is the whole reason localized routing exists. Strapi's own uid service is used
+   * so the result is slugified and made unique exactly as the Content Manager would — including
+   * per-locale uniqueness, since the same slug may legitimately exist in another locale.
+   */
+  const regenerateUids = async (
+    contentType: string,
+    schema: { attributes: Record<string, { type: string; targetField?: string }> },
+    translatedDocument: Record<string, unknown>,
+    targetLocale: string
+  ): Promise<Record<string, string>> => {
+    const uidService = strapi.service('plugin::content-manager.uid') as unknown as UidService;
+
+    if (!uidService?.generateUIDField) {
+      return {};
+    }
+
+    const regenerated: Record<string, string> = {};
+
+    for (const [name, attribute] of Object.entries(schema.attributes)) {
+      // Only a uid derived from another field can be regenerated. One with no targetField is a
+      // free-standing identifier the editor set, and inventing a new value would change a URL
+      // nobody asked to change.
+      if (attribute.type !== 'uid' || !attribute.targetField) {
+        continue;
+      }
+
+      const target = translatedDocument[attribute.targetField];
+
+      if (typeof target !== 'string' || target.trim() === '') {
+        continue;
+      }
+
+      try {
+        regenerated[name] = await uidService.generateUIDField({
+          contentTypeUID: contentType,
+          field: name,
+          data: translatedDocument,
+          locale: targetLocale,
+        });
+      } catch (error) {
+        // A slug that cannot be generated is not worth losing a whole translation over; the locale
+        // keeps whatever Strapi derives on write.
+        strapi.log.warn(
+          `[ai-bulk-translate] could not regenerate "${name}" for ${targetLocale}: ` +
+            (error instanceof Error ? error.message : 'unknown error')
+        );
+      }
+    }
+
+    return regenerated;
+  };
+
   return {
     /**
      * Finds the one document behind a single type.
@@ -100,11 +166,71 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
     },
 
     /**
-     * Sends fields to the model and returns `path → translated value`.
+     * Sends one chunk of parts to the model and returns `synthetic key → translated value`.
      *
      * Uses structured output against a schema of exactly the requested keys, which is what makes
      * the JSON-repair machinery comparable plugins carry unnecessary: the model cannot return a
      * different shape.
+     */
+    async translateChunk(
+      parts: FieldPart[],
+      targetLocale: string,
+      resolved: ResolvedModel
+    ): Promise<string[]> {
+      const [{ generateObject }, model] = await Promise.all([
+        loadAiSdk(),
+        strapi
+          .plugin('ai-bulk-translate')
+          .service('provider-registry')
+          .getModel(resolved.provider, resolved.model.modelId),
+      ]);
+
+      const shape = Object.fromEntries(
+        parts.map((part, index) => [
+          keyFor(index),
+          z
+            .string()
+            .describe(
+              part.partCount > 1
+                ? `Translation of "${part.path}", fragment ${part.partIndex + 1} of ${part.partCount}`
+                : `Translation of the "${part.path}" field`
+            ),
+        ])
+      );
+
+      const target = await localeName(targetLocale);
+
+      // A split field is announced as such, so the model translates the fragment in place instead
+      // of trying to complete a sentence that continues in another request.
+      const body = parts
+        .map((part, index) => {
+          const label =
+            part.partCount > 1
+              ? `${keyFor(index)} (${part.path}, ${part.type}, fragment ${part.partIndex + 1} of ${part.partCount} — translate this fragment only, do not add or complete text)`
+              : `${keyFor(index)} (${part.path}, ${part.type})`;
+
+          return `${label}:\n${part.value}`;
+        })
+        .join('\n\n');
+
+      const { object } = await generateObject({
+        model,
+        schema: z.object(shape),
+        system: config<string>('systemPrompt'),
+        temperature: config<number>('temperature'),
+        prompt: `Translate each of the following fields into ${target}.\n\n${body}`,
+      });
+
+      return parts.map((_, index) => {
+        const value = (object as Record<string, unknown>)[keyFor(index)];
+
+        return typeof value === 'string' ? value : '';
+      });
+    },
+
+    /**
+     * Translates a whole document's worth of fields, in as many requests as the token budget needs,
+     * and reassembles any field that had to be split.
      */
     async translateFields(
       fields: TranslatableField[],
@@ -115,43 +241,44 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         return {};
       }
 
-      const [{ generateObject }, model] = await Promise.all([
-        loadAiSdk(),
-        strapi
-          .plugin('ai-bulk-translate')
-          .service('provider-registry')
-          .getModel(resolved.provider, resolved.model.modelId),
-      ]);
+      const chunks = chunkFields(fields, { maxTokens: config<number>('maxTokensPerRequest') });
+      const collected = new Map<string, { partIndex: number; value: string }[]>();
 
-      const shape = Object.fromEntries(
-        fields.map((field, index) => [
-          keyFor(index),
-          z.string().describe(`Translation of the "${field.path}" field`),
-        ])
-      );
+      // Sequential: the concurrency cap belongs to the run, not to one document, and firing a
+      // document's chunks in parallel would quietly multiply the real rate by the chunk count.
+      for (const chunk of chunks) {
+        const translated = await this.translateChunk(chunk, targetLocale, resolved);
 
-      const target = await localeName(targetLocale);
-      const payload = fields
-        .map((field, index) => `${keyFor(index)} (${field.path}, ${field.type}):\n${field.value}`)
-        .join('\n\n');
+        chunk.forEach((part, index) => {
+          const value = translated[index];
 
-      const { object } = await generateObject({
-        model,
-        schema: z.object(shape),
-        system: config<string>('systemPrompt'),
-        temperature: config<number>('temperature'),
-        prompt: `Translate each of the following fields into ${target}.\n\n${payload}`,
-      });
+          if (value === '') {
+            return;
+          }
+
+          const parts = collected.get(part.path) ?? [];
+          parts.push({ partIndex: part.partIndex, value });
+          collected.set(part.path, parts);
+        });
+      }
 
       const translations: Record<string, string> = {};
 
-      fields.forEach((field, index) => {
-        const value = (object as Record<string, unknown>)[keyFor(index)];
+      for (const field of fields) {
+        const parts = collected.get(field.path);
 
-        if (typeof value === 'string') {
-          translations[field.path] = value;
+        if (!parts || parts.length === 0) {
+          continue;
         }
-      });
+
+        // A field is only written back if every fragment came home. Half a paragraph is worse than
+        // leaving the source text in place for a human to finish.
+        const expected = chunks.flat().find((part) => part.path === field.path)?.partCount ?? 1;
+
+        if (parts.length === expected) {
+          translations[field.path] = joinParts(parts);
+        }
+      }
 
       return translations;
     },
@@ -173,7 +300,8 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       }
 
       const schema = strapi.contentType(contentType as never);
-      const fields = extractFields(schema as never, source);
+      const components = strapi.components as unknown as ComponentSchemas;
+      const fields = extractFields(schema as never, source, components);
 
       if (fields.length === 0) {
         return { status: 'skipped', skippedReason: 'No translatable text in the source locale.' };
@@ -182,14 +310,19 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       // Re-checked here at execution time rather than trusted from the dialog, because content can
       // appear between a user opening the dialog and the job running. The richer three-state
       // matrix, shared with the dialog, arrives in the locale-status slice; this is the guard that
-      // keeps the tracer from overwriting by default in the meantime.
+      // keeps a run from overwriting by default in the meantime.
       const existing = (await documents.findOne({
         documentId,
         locale: targetLocale,
         status: 'draft',
-      })) as Record<string, unknown> | null;
+        ...(populate ? { populate } : {}),
+      } as never)) as Record<string, unknown> | null;
 
-      if (existing && !allowOverwrite && extractFields(schema as never, existing).length > 0) {
+      if (
+        existing &&
+        !allowOverwrite &&
+        extractFields(schema as never, existing, components).length > 0
+      ) {
         return {
           status: 'skipped',
           skippedReason: `${targetLocale} already has content and was not authorised for overwrite.`,
@@ -202,19 +335,26 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         return { status: 'failed', error: 'The model returned no usable translations.' };
       }
 
-      // Send back only the attributes translation actually touched. Strapi fills the rest: when the
-      // target locale does not exist yet, `update` creates it and copies non-localized fields
-      // across, so this is a true per-locale upsert with no create/update branching here.
       const clone = reinject(source, translations);
-      const roots = new Set(Object.keys(translations).map((path) => path.split('.')[0]));
-      const data = Object.fromEntries([...roots].map((root) => [root, clone[root]]));
+      const touchedPaths = Object.keys(translations);
+
+      const data = buildLocalePayload({
+        schema: schema as never,
+        components,
+        document: clone,
+        touchedPaths,
+      });
+
+      // Slugs derive from the translated title, so they are regenerated after reinjection and
+      // added to the payload even though no model produced them.
+      const uids = await regenerateUids(contentType, schema as never, clone, targetLocale);
 
       await documents.update({
         documentId,
         locale: targetLocale,
         // Draft, always. Publishing stays a human decision — the plugin never publishes.
         status: 'draft',
-        data: data as never,
+        data: { ...data, ...uids } as never,
       });
 
       return { status: 'translated' };

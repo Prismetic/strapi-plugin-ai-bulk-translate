@@ -115,9 +115,15 @@ Learned the hard way, after a probe silently added a locale to the host's real f
   existing one. Nothing at the document-service level enforces one row per single type.
 - Every localized single type on `CMS multi-locale` holds real `en` content. There is no empty one
   to borrow.
-- So: **snapshot the rows first, and assert the table is byte-identical afterwards.** Deleting a
-  single locale with `documents(uid).delete({ documentId, locale })` removes only that row and
-  leaves the other locales' drafts and published versions untouched — verified.
+- **`documents(uid).delete({ documentId })` does not delete every locale.** It removed the `en`
+  draft and published rows and left the `ar` one orphaned. Name every locale explicitly when
+  cleaning up, or a translated locale survives the delete. Deleting one locale with
+  `delete({ documentId, locale })` removes exactly that locale and leaves the others' drafts and
+  published versions untouched — verified.
+- **Verify cleanup with `db.query`, never `documents.findMany`.** A probe that checked with
+  `documents.findMany({ filters })` reported "0 artefacts left behind" while an `ar` row sat in the
+  table; the finding above is why.
+- So: **snapshot the rows first, and assert the table is byte-identical afterwards.**
 - Prefer creating a throwaway document over touching real content, but check with `db.query` that
   it is genuinely throwaway.
 

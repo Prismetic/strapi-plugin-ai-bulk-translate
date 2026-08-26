@@ -20,6 +20,12 @@ export default {
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     /** Low by default: translation should be faithful, not creative. */
     temperature: 0.2,
+    /**
+     * Ceiling for one model request, in estimated tokens. Sized well below any provider's context
+     * window: the point is predictable request sizes and useful chunk boundaries, not squeezing a
+     * document into as few calls as possible.
+     */
+    maxTokensPerRequest: 3000,
     /** Ceiling on documents per run, so a mis-click cannot trigger an enormous bill. */
     maxDocumentsPerRun: 100,
     /** Concurrent model requests per run. Raised to its real purpose by the bulk slice. */
@@ -31,6 +37,15 @@ export default {
 
     if (typeof temperature === 'number' && (temperature < 0 || temperature > 2)) {
       throw new Error('ai-bulk-translate: temperature must be between 0 and 2.');
+    }
+
+    const { maxTokensPerRequest } = config;
+
+    if (
+      maxTokensPerRequest !== undefined &&
+      (typeof maxTokensPerRequest !== 'number' || maxTokensPerRequest < 100)
+    ) {
+      throw new Error('ai-bulk-translate: maxTokensPerRequest must be a number of at least 100.');
     }
 
     for (const [key, value] of Object.entries({ maxDocumentsPerRun, maxConcurrency })) {
