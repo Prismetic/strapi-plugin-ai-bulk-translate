@@ -16,6 +16,16 @@ const healthController = {
     try {
       const sdk = await loadAiSdk();
 
+      // Resolved from the plugin's own position in node_modules, so this reports the copy the
+      // plugin will actually use — the number that matters when adapters disagree with core.
+      const versionOf = (pkg: string): string => {
+        try {
+          return require(`${pkg}/package.json`).version as string;
+        } catch {
+          return 'not resolved';
+        }
+      };
+
       ctx.body = {
         ok: true,
         plugin: 'ai-bulk-translate',
@@ -25,6 +35,11 @@ const healthController = {
           generateText: typeof sdk.generateText,
           generateObject: typeof sdk.generateObject,
           createProviderRegistry: typeof sdk.createProviderRegistry,
+          version: versionOf('ai'),
+          adapters: {
+            openai: versionOf('@ai-sdk/openai'),
+            azure: versionOf('@ai-sdk/azure'),
+          },
         },
       };
     } catch (error) {

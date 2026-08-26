@@ -98,3 +98,29 @@ To exercise plugin services against a booted Strapi on a TypeScript host, run th
 compiled `dist/` directory with the host's `.env` exported, and copy `package.json` into `dist`
 first. `createStrapi()` from the project root reads the `.ts` config files, which plain `node`
 cannot load, and boots with no database configured.
+
+## AI SDK version conflicts with the host
+
+**Strapi depends on the AI SDK itself** — `@strapi/content-type-builder` pulls in `ai` (5.0.26 on
+Strapi 5.27). A host therefore already has a copy of `ai`, and it may be hoisted above ours.
+
+The plugin's adapters and the core `ai` package must be the same generation: `ai@5` pairs with
+`@ai-sdk/*@2.x` (provider spec v2), `ai@7` pairs with `@ai-sdk/*@4.x` (spec v4). Cross them and every
+model call fails with an unhelpful message about "specification version".
+
+A **real npm install nests correctly** — verified by packing the plugin and installing it into a
+project that already had `ai@5.0.26`: npm placed `ai@7.0.79` under the plugin and left `ai@5.0.26`
+hoisted for Strapi. Published installs are not affected.
+
+**A yalc-linked checkout is affected**, because yalc copies only `dist/` and npm dedupes to the
+host's copy instead of nesting. After `yalc add`/`yalc push`, run once:
+
+```
+cd <host>/node_modules/strapi-plugin-ai-bulk-translate && npm install --omit=dev --no-package-lock
+```
+
+The nested tree survives later `yalc push` calls, so this is a one-time step per host.
+
+`GET /ai-bulk-translate/health` reports the resolved `ai` version and adapter versions, which is the
+fastest way to confirm they match. `testConnection` also detects the mismatch and returns an
+actionable message rather than passing the SDK's raw error through.

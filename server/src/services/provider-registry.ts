@@ -11,6 +11,31 @@ import type { ProviderRow } from './provider-store';
  * reason the core SDK is — see `ai-sdk.ts`. This is also the only place a decrypted key exists;
  * it is passed straight into the adapter and never returned, logged, or put on a response.
  */
+/**
+ * Turns an AI SDK version-mismatch error into something an operator can act on.
+ *
+ * Strapi itself depends on the AI SDK (`@strapi/content-type-builder` pulls in `ai`), so a host can
+ * end up with that copy hoisted above the plugin's own. The adapters then implement a different
+ * provider specification than the core package expects, and the SDK raises a message about
+ * "specification version" that says nothing about how to fix it.
+ *
+ * A normal npm install of this plugin nests its own `ai` and is unaffected — this is mainly seen
+ * with linked local checkouts and with package managers that hoist aggressively.
+ */
+const describeVersionMismatch = (message: string): string | null => {
+  if (!/specification version|Unsupported model version/i.test(message)) {
+    return null;
+  }
+
+  return (
+    'The AI SDK core package and its provider adapters are different, incompatible versions. ' +
+    'This usually means the plugin is resolving a copy of "ai" belonging to Strapi rather than its ' +
+    'own. Reinstall so the plugin gets its own nested copy — for a linked checkout, run ' +
+    '`npm install --omit=dev` inside node_modules/strapi-plugin-ai-bulk-translate — then restart ' +
+    `Strapi. Original error: ${message}`
+  );
+};
+
 const providerRegistry = ({ strapi }: { strapi: Core.Strapi }) => {
   const crypto = () => strapi.plugin('ai-bulk-translate').service('crypto');
 
@@ -104,6 +129,11 @@ const providerRegistry = ({ strapi }: { strapi: Core.Strapi }) => {
         };
       } catch (error) {
         const detail = error instanceof Error ? error.message : 'Unknown error';
+        const mismatch = describeVersionMismatch(detail);
+
+        if (mismatch) {
+          return { ok: false, message: mismatch };
+        }
 
         return { ok: false, message: `${definition.label} did not respond: ${detail}` };
       }
