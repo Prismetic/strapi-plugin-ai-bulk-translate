@@ -16,6 +16,8 @@ import { useLocaleStatus } from '../../hooks/useLocaleStatus';
 import { useLocales } from '../../hooks/useLocales';
 import { useTranslationJob, type JobItem } from '../../hooks/useTranslationJob';
 import { getTranslation } from '../../utils/getTranslation';
+import { resolveOutcome, type BlockedReason } from '../../utils/outcome';
+import { ConflictList } from './ConflictList';
 import { LocalePreview } from './LocalePreview';
 
 interface TranslateModalProps {
@@ -38,9 +40,11 @@ const statusColor = (status: JobItem['status']) => {
 /**
  * The dialog every translation run passes through, on every surface.
  *
- * Minimal on purpose in this slice: pick target locales, confirm, watch progress. The per-entry
- * preview, the three badge states and the conflict opt-in arrive in later slices and extend this
- * component rather than replacing it.
+ * Four regions, in the order an editor thinks: which locales, what will happen to each entry, which
+ * existing translations to replace, and then the outcome in words above the confirm button.
+ *
+ * The arithmetic behind the last two lives in `resolveOutcome`, not here, so the sentence the footer
+ * states and the condition the button is enabled by cannot disagree.
  */
 const TranslateModal = ({
   contentType,
@@ -55,10 +59,17 @@ const TranslateModal = ({
   const [{ query }, setQuery] = useQueryParams<Record<string, unknown>>();
 
   const [selected, setSelected] = useState<string[]>([]);
+  const [authorised, setAuthorised] = useState<string[]>([]);
 
   // Nothing is fetched until a target is chosen — the preview has nothing to say before then, and
   // asking the server to read every selected document for no locales is pure waste.
   const preview = useLocaleStatus(contentType, documentIds, sourceLocale, selected);
+
+  const outcome = resolveOutcome({
+    rows: preview.rows,
+    targetLocales: selected,
+    authorised,
+  });
 
   const targets = locales.filter((locale) => locale.code !== sourceLocale);
 
@@ -67,10 +78,18 @@ const TranslateModal = ({
       current.includes(code) ? current.filter((entry) => entry !== code) : [...current, code]
     );
 
+  const toggleAuthorised = (documentId: string) =>
+    setAuthorised((current) =>
+      current.includes(documentId)
+        ? current.filter((entry) => entry !== documentId)
+        : [...current, documentId]
+    );
+
   const submit = () => {
     // Entries with nothing in the source locale are dropped here as well as server-side, so the
     // job's item count matches what the preview promised rather than counting work that cannot
-    // happen.
+    // happen. Conflicts are *not* dropped: sending them is what makes the job record show them as
+    // skipped, which is the audit trail the run is supposed to leave.
     const translatableIds = preview.rows.length
       ? preview.translatable.map((row) => row.documentId)
       : documentIds;
@@ -80,7 +99,34 @@ const TranslateModal = ({
       documentIds: translatableIds,
       sourceLocale,
       targetLocales: selected,
+      // Only approvals the editor could actually see and tick, so the job records nothing stale.
+      overwriteDocumentIds: outcome.authorisedIds,
       origin,
+    });
+  };
+
+  const blockedMessage = (reason: BlockedReason) => {
+    if (reason === 'no-target-locales') {
+      return formatMessage({
+        id: getTranslation('outcome.blocked.noLocales'),
+        defaultMessage: 'Choose at least one locale to translate into.',
+      });
+    }
+
+    if (reason === 'nothing-in-source') {
+      return formatMessage(
+        {
+          id: getTranslation('outcome.blocked.noSource'),
+          defaultMessage: 'Nothing selected has content in {locale} to translate.',
+        },
+        { locale: sourceLocale }
+      );
+    }
+
+    return formatMessage({
+      id: getTranslation('outcome.blocked.conflicts'),
+      defaultMessage:
+        'Every locale you chose already has a translation. Tick the entries you want to replace, or choose another locale.',
     });
   };
 
@@ -181,17 +227,16 @@ const TranslateModal = ({
                     error={preview.error}
                   />
 
-                  {!preview.isLoading && preview.rows.length > 0 ? (
-                    <Typography variant="pi" textColor="neutral600">
-                      {formatMessage(
-                        {
-                          id: getTranslation('preview.summary'),
-                          defaultMessage:
-                            '{create, plural, one {# locale} other {# locales}} will be written. {conflicts, plural, =0 {} one {# already has content and will be skipped.} other {# already have content and will be skipped.}}',
-                        },
-                        { create: preview.counts.willCreate, conflicts: preview.counts.conflicts }
-                      )}
-                    </Typography>
+                  {!preview.isLoading && outcome.conflicts.length > 0 ? (
+                    <ConflictList
+                      conflicts={outcome.conflicts}
+                      authorised={authorised}
+                      onToggle={toggleAuthorised}
+                      onSelectAll={() =>
+                        setAuthorised(outcome.conflicts.map((conflict) => conflict.documentId))
+                      }
+                      onClearAll={() => setAuthorised([])}
+                    />
                   ) : null}
 
                   {preview.excluded.length > 0 ? (
@@ -205,6 +250,41 @@ const TranslateModal = ({
                         { count: preview.excluded.length, locale: sourceLocale }
                       )}
                     </Typography>
+                  ) : null}
+
+                  {/* The resolved outcome, stated in words directly before the confirm button, so
+                      the last thing read is what will happen rather than a count of rows. */}
+                  {!preview.isLoading && preview.rows.length > 0 ? (
+                    <Box
+                      padding={3}
+                      hasRadius
+                      background={outcome.hasWork ? 'primary100' : 'warning100'}
+                    >
+                      <Typography
+                        variant="omega"
+                        fontWeight="semiBold"
+                        textColor={outcome.hasWork ? 'primary600' : 'warning600'}
+                      >
+                        {outcome.hasWork
+                          ? formatMessage(
+                              {
+                                id: getTranslation('outcome.summary'),
+                                defaultMessage:
+                                  '{create, plural, =0 {} one {Will create # translation} other {Will create # translations}}{both, select, yes {, and } other {}}{overwrite, plural, =0 {} one {will replace # existing translation} other {will replace # existing translations}}. {skip, plural, =0 {} one {# existing translation is left untouched.} other {# existing translations are left untouched.}}',
+                              },
+                              {
+                                create: outcome.willCreate,
+                                overwrite: outcome.willOverwrite,
+                                skip: outcome.willSkip,
+                                both:
+                                  outcome.willCreate > 0 && outcome.willOverwrite > 0
+                                    ? 'yes'
+                                    : 'no',
+                              }
+                            )
+                          : blockedMessage(outcome.blockedReason)}
+                      </Typography>
+                    </Box>
                   ) : null}
                 </Flex>
               ) : null}
@@ -260,7 +340,13 @@ const TranslateModal = ({
         </Button>
 
         {!job ? (
-          <Button loading={isStarting} disabled={selected.length === 0} onClick={submit}>
+          <Button
+            loading={isStarting}
+            // Disabled whenever the run would do nothing — the body says why, so this is never a
+            // dead button with no explanation.
+            disabled={!outcome.hasWork || preview.isLoading}
+            onClick={submit}
+          >
             {formatMessage({
               id: getTranslation('translate.confirm'),
               defaultMessage: 'Translate',
@@ -273,8 +359,7 @@ const TranslateModal = ({
             {formatMessage(
               {
                 id: getTranslation('translate.retry'),
-                defaultMessage:
-                  'Retry {count, plural, one {# failed item} other {# failed items}}',
+                defaultMessage: 'Retry {count, plural, one {# failed item} other {# failed items}}',
               },
               { count: failedCount }
             )}

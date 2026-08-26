@@ -70,8 +70,9 @@ export const useLocaleStatus = (
     void load();
   }, [load]);
 
-  const translatable = rows.filter((row) => !row.excluded);
-
+  // No counts here on purpose. They used to live alongside these rows, and `resolveOutcome` now
+  // derives them from the same matrix together with the editor's opt-ins. Two places computing the
+  // same arithmetic is how a footer ends up promising work that the confirm button refuses to do.
   return {
     rows,
     isLoading,
@@ -79,16 +80,6 @@ export const useLocaleStatus = (
     /** Entries excluded because the source locale has nothing to translate. */
     excluded: rows.filter((row) => row.excluded),
     /** Entries that would be written to at least one locale. */
-    translatable,
-    counts: {
-      willCreate: translatable.reduce(
-        (total, row) => total + Object.values(row.locales).filter((s) => s === 'empty').length,
-        0
-      ),
-      conflicts: translatable.reduce(
-        (total, row) => total + Object.values(row.locales).filter((s) => s === 'has-content').length,
-        0
-      ),
-    },
+    translatable: rows.filter((row) => !row.excluded),
   };
 };
