@@ -26,6 +26,17 @@ Skills live in `.claude/skills/`. Load them by name:
 
 `.sandcastle/` runs the AFK loop: it works only `afk`-labelled GitHub issues, one per iteration, validating with the configured feedback commands before committing. See [.sandcastle/prompt.md](.sandcastle/prompt.md).
 
+**This repo uses npm, not pnpm.** The harness README documents pnpm commands; use these instead:
+
+```
+npx tsx .sandcastle/interactive.ts   # supervised, no sandbox
+npx tsx .sandcastle/main.ts          # sandboxed — requires Docker
+```
+
+`interactive.ts` is the one to use here: Docker is not installed, and several acceptance criteria
+need the plugin linked into a Strapi host that lives outside this repo, which a container would
+isolate you away from.
+
 ## Golden rules
 
 - Prefer `afk`; reserve `hitl` for scope, architecture, risky changes, QA sign-off, and merges.
