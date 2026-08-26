@@ -124,3 +124,19 @@ The nested tree survives later `yalc push` calls, so this is a one-time step per
 `GET /ai-bulk-translate/health` reports the resolved `ai` version and adapter versions, which is the
 fastest way to confirm they match. `testConnection` also detects the mismatch and returns an
 actionable message rather than passing the SDK's raw error through.
+
+## Writing host probes
+
+Two traps, both found the hard way:
+
+**Probes must be CommonJS.** `@strapi/core`'s `.mjs` entry fails Node's ESM resolver with
+`ERR_UNSUPPORTED_DIR_IMPORT` on `lodash/fp`, so a probe cannot `import` Strapi. Write `.cjs`.
+
+**Never `import('ai')` directly in a probe.** Module resolution starts from the probe's own location,
+so a probe living in the host resolves Strapi's hoisted `ai@5` while plugin services resolve the
+plugin's nested `ai@7`. Mixing them produces the same "specification version" error as a broken
+install, but the plugin is fine — only the probe is wrong. Drive everything through plugin services
+(`provider-registry`, `model-store`), which resolve the SDK from the plugin's own position.
+
+A probe that fails partway leaves rows behind. Clean up defensively at the start of the next run
+rather than trusting the previous one reached its teardown.
