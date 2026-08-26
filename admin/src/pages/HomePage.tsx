@@ -1,19 +1,21 @@
-import { Box, Flex, Main, Typography } from '@strapi/design-system';
+import { Accordion, Box, Flex, Main, Typography } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
 
+import { ProvidersSection } from '../components/providers/ProvidersSection';
 import { getTranslation } from '../utils/getTranslation';
 
 /**
- * Settings landing page. Provider connections, models and translation settings are
- * added here in later slices; for now it exists so the plugin has a reachable page and
- * the admin bundle is exercised by the build.
+ * Settings page. Sections are accordion items rather than tabs: configuring this is a sequential
+ * task — add a provider, register a model under it, tune the prompt — and an accordion lets two
+ * sections stay open at once while cross-referencing. Models, Translation and Monitoring sections
+ * are added by later slices.
  */
 const HomePage = () => {
   const { formatMessage } = useIntl();
 
   return (
     <Main>
-      <Box paddingLeft={10} paddingRight={10} paddingTop={8} paddingBottom={8}>
+      <Box paddingLeft={10} paddingRight={10} paddingTop={8} paddingBottom={6} background="neutral100">
         <Flex direction="column" alignItems="flex-start" gap={2}>
           <Typography variant="alpha" tag="h1" fontWeight="bold">
             {formatMessage({
@@ -29,6 +31,26 @@ const HomePage = () => {
             })}
           </Typography>
         </Flex>
+      </Box>
+
+      <Box paddingLeft={10} paddingRight={10} paddingTop={6} paddingBottom={10}>
+        <Accordion.Root defaultValue="providers">
+          <Accordion.Item value="providers">
+            <Accordion.Header>
+              <Accordion.Trigger>
+                {formatMessage({
+                  id: getTranslation('providers.section'),
+                  defaultMessage: 'Providers',
+                })}
+              </Accordion.Trigger>
+            </Accordion.Header>
+            <Accordion.Content>
+              <Box padding={5}>
+                <ProvidersSection />
+              </Box>
+            </Accordion.Content>
+          </Accordion.Item>
+        </Accordion.Root>
       </Box>
     </Main>
   );
