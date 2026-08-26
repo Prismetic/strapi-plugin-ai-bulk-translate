@@ -1,5 +1,6 @@
 {
   "ai-bulk-translate.action.cancel": "Cancel",
+  "ai-bulk-translate.action.close": "Close",
   "ai-bulk-translate.action.delete": "Delete",
   "ai-bulk-translate.action.disable": "Disable",
   "ai-bulk-translate.action.edit": "Edit",
@@ -48,5 +49,15 @@
   "ai-bulk-translate.providers.section": "Providers",
   "ai-bulk-translate.providers.test": "Test connection",
   "ai-bulk-translate.providers.testModel": "Model to test with",
-  "ai-bulk-translate.providers.testModel.placeholder": "Model to test with, e.g. gpt-5.4-mini"
+  "ai-bulk-translate.providers.testModel.placeholder": "Model to test with, e.g. gpt-5.4-mini",
+  "ai-bulk-translate.translate.action": "Translate",
+  "ai-bulk-translate.translate.confirm": "Translate",
+  "ai-bulk-translate.translate.done": "{translated} translated, {skipped} skipped, {failed} failed",
+  "ai-bulk-translate.translate.failed": "Translation could not start",
+  "ai-bulk-translate.translate.intro": "Translating from {source}. Results are saved as drafts for review — nothing is published.",
+  "ai-bulk-translate.translate.noTargets": "This project has no other locale to translate into. Add one in Internationalization settings.",
+  "ai-bulk-translate.translate.progress": "Translating… {done} of {total} done",
+  "ai-bulk-translate.translate.targets": "Translate into",
+  "ai-bulk-translate.translate.title": "AI translate",
+  "ai-bulk-translate.translate.view": "View {locale}"
 }

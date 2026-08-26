@@ -1,5 +1,6 @@
 import { Initializer } from './components/Initializer';
 import { PluginIcon } from './components/PluginIcon';
+import { TranslateDocumentAction } from './components/translate/TranslateDocumentAction';
 import { PLUGIN_ID } from './pluginId';
 
 export default {
@@ -27,8 +28,11 @@ export default {
   },
 
   bootstrap(app: any) {
-    // Bulk action and document action are registered here in later slices.
-    void app;
+    // The list-view bulk action is registered here by a later slice; the edit-view action is the
+    // only surface for now.
+    app
+      .getPlugin('content-manager')
+      .apis.addDocumentAction((actions: unknown[]) => [...actions, TranslateDocumentAction]);
   },
 
   async registerTrads({ locales }: { locales: string[] }) {

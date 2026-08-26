@@ -1,110 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { MODEL_UID, PROVIDER_UID } from '../models';
+import { createFakeStrapi } from '../testing/fake-strapi';
 import modelStore from './model-store';
 import providerStore from './provider-store';
-
-import type { Core } from '@strapi/strapi';
-
-/**
- * An in-memory stand-in for `strapi.db.query`, supporting only the flat-equality `where` clauses
- * these stores actually issue.
- *
- * The invariants under test — one default across the install, and what happens to models when
- * their connection goes away — are exactly the kind that break silently, so they are worth testing
- * without a Strapi bootstrap rather than not at all.
- */
-const createFakeDb = (seed: Record<string, Record<string, unknown>[]>) => {
-  const tables = new Map<string, Record<string, unknown>[]>(
-    Object.entries(seed).map(([uid, rows]) => [uid, rows.map((row) => ({ ...row }))])
-  );
-
-  const rowsFor = (uid: string) => {
-    if (!tables.has(uid)) {
-      tables.set(uid, []);
-    }
-
-    return tables.get(uid)!;
-  };
-
-  const matches = (row: Record<string, unknown>, where: Record<string, unknown> = {}) =>
-    Object.entries(where).every(([key, value]) => row[key] === value);
-
-  const nextId = (uid: string) =>
-    rowsFor(uid).reduce((max, row) => Math.max(max, Number(row.id)), 0) + 1;
-
-  return {
-    tables,
-
-    query(uid: string) {
-      return {
-        async findMany({ where }: { where?: Record<string, unknown> } = {}) {
-          return rowsFor(uid)
-            .filter((row) => matches(row, where))
-            .map((row) => ({ ...row }));
-        },
-        async findOne({ where }: { where?: Record<string, unknown> } = {}) {
-          const found = rowsFor(uid).find((row) => matches(row, where));
-
-          return found ? { ...found } : null;
-        },
-        async create({ data }: { data: Record<string, unknown> }) {
-          const row = { id: nextId(uid), ...data };
-          rowsFor(uid).push(row);
-
-          return { ...row };
-        },
-        async update({
-          where,
-          data,
-        }: {
-          where?: Record<string, unknown>;
-          data: Record<string, unknown>;
-        }) {
-          const found = rowsFor(uid).find((row) => matches(row, where));
-
-          if (!found) {
-            return null;
-          }
-
-          Object.assign(found, data);
-
-          return { ...found };
-        },
-        async updateMany({
-          where,
-          data,
-        }: {
-          where?: Record<string, unknown>;
-          data: Record<string, unknown>;
-        }) {
-          const affected = rowsFor(uid).filter((row) => matches(row, where));
-          affected.forEach((row) => Object.assign(row, data));
-
-          return { count: affected.length };
-        },
-        async delete({ where }: { where?: Record<string, unknown> } = {}) {
-          const rows = rowsFor(uid);
-          const index = rows.findIndex((row) => matches(row, where));
-
-          return index === -1 ? null : { ...rows.splice(index, 1)[0] };
-        },
-        async deleteMany({ where }: { where?: Record<string, unknown> } = {}) {
-          const rows = rowsFor(uid);
-          const removed = rows.filter((row) => matches(row, where));
-          removed.forEach((row) => rows.splice(rows.indexOf(row), 1));
-
-          return { count: removed.length };
-        },
-      };
-    },
-  };
-};
 
 interface Harness {
   models: ReturnType<typeof modelStore>;
   providers: ReturnType<typeof providerStore>;
-  db: ReturnType<typeof createFakeDb>;
+  db: ReturnType<typeof createFakeStrapi>['db'];
 }
 
 /**
@@ -112,20 +16,7 @@ interface Harness {
  * than encrypting. What is being tested here is the registry's rules, not `admin::encryption`.
  */
 const createHarness = (seed: Record<string, Record<string, unknown>[]> = {}): Harness => {
-  const db = createFakeDb(seed);
-  const services: Record<string, unknown> = {};
-
-  const strapi = {
-    db,
-    plugin: () => ({ service: (name: string) => services[name] }),
-  } as unknown as Core.Strapi;
-
-  services.crypto = {
-    isAvailable: () => true,
-    encrypt: (value: string) => `enc:${value}`,
-    decrypt: (cipher: string) => cipher.replace(/^enc:/, ''),
-    mask: (cipher: string | null) => (cipher ? '•••' : null),
-  };
+  const { strapi, db, services } = createFakeStrapi({ seed });
 
   const providers = providerStore({ strapi });
   const models = modelStore({ strapi });
