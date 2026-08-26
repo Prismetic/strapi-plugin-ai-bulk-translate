@@ -46,4 +46,12 @@ export default [
   { method: 'POST', path: '/jobs', handler: 'job.create', config: { policies: [] } },
   { method: 'GET', path: '/jobs/:id', handler: 'job.findOne', config: { policies: [] } },
   { method: 'POST', path: '/jobs/:id/retry', handler: 'job.retry', config: { policies: [] } },
+
+  // A read, but POST: the body carries a document-id list that would not survive a query string.
+  {
+    method: 'POST',
+    path: '/locale-status',
+    handler: 'locale-status.find',
+    config: { policies: [] },
+  },
 ];

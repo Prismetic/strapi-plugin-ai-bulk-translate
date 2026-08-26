@@ -1,6 +1,7 @@
 import crypto from './crypto';
 import jobRunner from './job-runner';
 import jobStore from './job-store';
+import localeStatus from './locale-status';
 import modelStore from './model-store';
 import providerRegistry from './provider-registry';
 import providerStore from './provider-store';
@@ -12,6 +13,7 @@ export default {
   'provider-registry': providerRegistry,
   'model-store': modelStore,
   'job-store': jobStore,
+  'locale-status': localeStatus,
   'job-runner': jobRunner,
   translator,
 };

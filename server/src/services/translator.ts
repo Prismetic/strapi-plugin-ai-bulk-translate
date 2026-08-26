@@ -58,6 +58,9 @@ const keyFor = (index: number): string => `f${index}`;
  * triggered belongs to the caller, not here.
  */
 const translator = ({ strapi }: { strapi: Core.Strapi }) => {
+  /** Resolved lazily so the two services can reference each other without an import cycle. */
+  const status = () => strapi.plugin('ai-bulk-translate').service('locale-status');
+
   const config = <T>(key: string): T => strapi.config.get(`plugin::ai-bulk-translate.${key}`) as T;
 
   const localeName = async (code: string): Promise<string> => {
@@ -146,6 +149,16 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   };
 
   return {
+    /**
+     * The deep-populate spec for a content type.
+     *
+     * Exposed so locale-status loads documents the same way this service does. A shallower read
+     * there would miss text nested in components and report a locale as empty when it is not.
+     */
+    buildDeepPopulate(contentType: string): Promise<PopulateSpec> {
+      return deepPopulate(contentType);
+    },
+
     /**
      * Finds the one document behind a single type.
      *
@@ -303,14 +316,16 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       const components = strapi.components as unknown as ComponentSchemas;
       const fields = extractFields(schema as never, source, components);
 
-      if (fields.length === 0) {
+      // Same predicate the dialog uses — see locale-status. Asking this question in two places is
+      // how a preview and a run come to disagree.
+      if (!status().hasTranslatableContent(schema as never, source, components)) {
         return { status: 'skipped', skippedReason: 'No translatable text in the source locale.' };
       }
 
       // Re-checked here at execution time rather than trusted from the dialog, because content can
-      // appear between a user opening the dialog and the job running. The richer three-state
-      // matrix, shared with the dialog, arrives in the locale-status slice; this is the guard that
-      // keeps a run from overwriting by default in the meantime.
+      // appear between a user opening the dialog and the job running. The check itself is the
+      // dialog's own — locale-status — so a preview and a run cannot disagree about what
+      // "already has content" means.
       const existing = (await documents.findOne({
         documentId,
         locale: targetLocale,
@@ -319,9 +334,8 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       } as never)) as Record<string, unknown> | null;
 
       if (
-        existing &&
         !allowOverwrite &&
-        extractFields(schema as never, existing, components).length > 0
+        status().hasTranslatableContent(schema as never, existing, components)
       ) {
         return {
           status: 'skipped',
