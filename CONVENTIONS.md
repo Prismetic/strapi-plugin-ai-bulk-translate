@@ -86,3 +86,15 @@ given, so any non-empty value works and only a missing key causes `encrypt()` to
 
 - Explain the decision, not the diff. Say why, and note anything the next iteration should know.
 - Record corrections explicitly when a prior assumption turns out to be wrong.
+
+## Working with the linked host
+
+`yalc push` syncs built files only — it does **not** install the plugin's dependencies into the
+host. After adding any dependency to the plugin, run `npm install` in the host as well, or the
+plugin will fail at runtime with `Cannot find package '…'` from a dynamic import. That failure
+surfaces only when the code path runs, not at build or startup.
+
+To exercise plugin services against a booted Strapi on a TypeScript host, run the probe from the
+compiled `dist/` directory with the host's `.env` exported, and copy `package.json` into `dist`
+first. `createStrapi()` from the project root reads the `.ts` config files, which plain `node`
+cannot load, and boots with no database configured.
