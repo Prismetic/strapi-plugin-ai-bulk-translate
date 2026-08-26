@@ -168,3 +168,13 @@ install, but the plugin is fine — only the probe is wrong. Drive everything th
 
 A probe that fails partway leaves rows behind. Clean up defensively at the start of the next run
 rather than trusting the previous one reached its teardown.
+
+## `documents.delete` is locale-scoped
+
+`strapi.documents(uid).delete({ documentId })` removes **one locale**, not the document. A probe that
+creates an entry, translates it, then deletes by `documentId` alone leaves the translated locale
+behind — verified on the host, where the `ar` row survived while `en` went. Pass `locale: '*'` to
+remove every locale, and the same for `findMany` when checking whether cleanup worked, or the
+leftover rows will not even be visible.
+
+This matters beyond probes: anything that deletes on the user's behalf must be explicit about scope.
