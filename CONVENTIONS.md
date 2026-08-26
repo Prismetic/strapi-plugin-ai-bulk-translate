@@ -178,3 +178,27 @@ remove every locale, and the same for `findMany` when checking whether cleanup w
 leftover rows will not even be visible.
 
 This matters beyond probes: anything that deletes on the user's behalf must be explicit about scope.
+
+## Vite's dependency cache goes stale after `yalc push`
+
+Strapi's dev server pre-bundles dependencies with Vite into
+`<host>/node_modules/.strapi/vite/deps`, and the plugin is one of them. `yalc push` replaces the
+plugin's `dist`, but **nothing invalidates that cache** — so the admin keeps serving whatever was
+bundled the first time. Observed with a cache from 15:43 still being served against a `dist` rebuilt
+at 18:23: a whole settings section, present in source and in `dist`, was simply absent from the UI.
+
+It fails silently. There is no error and no warning; the feature just is not there, which reads like
+a bug in the feature rather than a stale bundle.
+
+After any `yalc push` that changes admin code:
+
+```
+rm -rf <host>/node_modules/.strapi/vite <host>/.strapi/client
+```
+
+then restart the dev server and hard-refresh the browser. Server-only changes do not need it —
+Strapi reloads those itself.
+
+**Diagnosing it:** compare the mtime of `node_modules/.strapi/vite/deps/_metadata.json` against the
+plugin's `dist`. If the cache is older, that is the answer. Grepping the built plugin `dist` for a
+string you expect confirms the code shipped, which separates "not built" from "not served".
