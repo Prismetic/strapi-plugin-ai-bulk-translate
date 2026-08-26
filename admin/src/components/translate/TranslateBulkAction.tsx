@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useIntl } from 'react-intl';
 
 import { useTranslatableContentTypes } from '../../hooks/useTranslatableContentTypes';
+import { useTranslatePermission } from '../../hooks/useTranslatePermission';
 import { getTranslation } from '../../utils/getTranslation';
 import { PluginIcon } from '../PluginIcon';
 import { TranslateModal } from './TranslateModal';
@@ -27,6 +28,7 @@ interface BulkActionContext {
 const TranslateBulkAction = ({ documents, model, collectionType }: BulkActionContext) => {
   const { formatMessage } = useIntl();
   const { isTranslatable } = useTranslatableContentTypes();
+  const { canTranslate } = useTranslatePermission();
 
   const selected = documents ?? [];
   const documentIds = useMemo(() => selected.map((entry) => entry.documentId), [selected]);
@@ -63,6 +65,7 @@ const TranslateBulkAction = ({ documents, model, collectionType }: BulkActionCon
   // `isTranslatable` is null until the content-type list loads. Hiding the action until it is known
   // beats flashing one that may not apply.
   if (
+    !canTranslate ||
     collectionType !== 'collection-types' ||
     !isTranslatable(model) ||
     documentIds.length === 0 ||

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useIntl } from 'react-intl';
 
 import { useTranslatableContentTypes } from '../../hooks/useTranslatableContentTypes';
+import { useTranslatePermission } from '../../hooks/useTranslatePermission';
 import { getTranslation } from '../../utils/getTranslation';
 import { PluginIcon } from '../PluginIcon';
 import { TranslateModal } from './TranslateModal';
@@ -32,6 +33,7 @@ const TranslateDocumentAction = ({
 }: DocumentActionContext) => {
   const { formatMessage } = useIntl();
   const { isTranslatable } = useTranslatableContentTypes();
+  const { canTranslate } = useTranslatePermission();
 
   const sourceLocale = document?.locale ?? null;
   const translatable = isTranslatable(model);
@@ -66,8 +68,9 @@ const TranslateDocumentAction = ({
   }, [model, documentIds, sourceLocale]);
 
   // `translatable` is null until the content-type list loads; hiding the action until it is known
-  // is better than flashing one that might not apply.
-  if (!translatable || !sourceLocale || !content) {
+  // is better than flashing one that might not apply. The permission is treated the same way:
+  // absent until RBAC resolves, so the action never appears for a role that cannot use it.
+  if (!canTranslate || !translatable || !sourceLocale || !content) {
     return null;
   }
 

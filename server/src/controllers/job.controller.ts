@@ -5,6 +5,9 @@ import type { Context } from 'koa';
 
 const plugin = () => strapi.plugin('ai-bulk-translate');
 
+/** The Content Manager's own write permission for a content type. */
+const CONTENT_MANAGER_UPDATE = 'plugin::content-manager.explorer.update';
+
 const badRequest = (ctx: Context, message: string) => {
   ctx.status = 400;
   ctx.body = { error: { message } };
@@ -77,6 +80,30 @@ const jobController = {
 
     if (input.targetLocales.includes(input.sourceLocale)) {
       return badRequest(ctx, 'The source locale cannot also be a target locale.');
+    }
+
+    /**
+     * Holding `translate` is not the same as being allowed to write *this* content type.
+     *
+     * Without this check the plugin permission would be a way around content permissions rather
+     * than an addition to them: anyone able to translate could write to a type their role
+     * otherwise excludes, by asking a model to do it for them. The Content Manager's own checker is
+     * used so the answer matches what the Content Manager itself would allow.
+     */
+    const checker = strapi
+      .plugin('content-manager')
+      .service('permission-checker')
+      .create({ userAbility: ctx.state?.userAbility, model: input.contentType });
+
+    // `cannot` takes the action id; the checker exposes no bound `.update()` helper at 5.27.
+    if (checker.cannot(CONTENT_MANAGER_UPDATE)) {
+      ctx.status = 403;
+      ctx.body = {
+        error: {
+          message: `You do not have permission to update "${input.contentType}", so it cannot be translated.`,
+        },
+      };
+      return;
     }
 
     const job = await plugin()
