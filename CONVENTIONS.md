@@ -99,6 +99,28 @@ compiled `dist/` directory with the host's `.env` exported, and copy `package.js
 first. `createStrapi()` from the project root reads the `.ts` config files, which plain `node`
 cannot load, and boots with no database configured.
 
+**Probes must be CommonJS.** The host's `@strapi/core` ESM entry fails Node's resolver with
+`ERR_UNSUPPORTED_DIR_IMPORT` on `lodash/fp`, so `import { createStrapi }` cannot be used. Use
+`require`.
+
+### Probes that touch content
+
+Learned the hard way, after a probe silently added a locale to the host's real footer:
+
+- **`documents(uid).findOne({ locale })` without a `documentId` always returns null**, including for
+  single types. It is not a way to ask "does this single type have content" — it will answer "no"
+  about a document that exists. Inspect with `db.query(uid).findMany({})`, which is the only
+  reliable view.
+- **`documents(uid).create()` on a single type adds another document** rather than reusing the
+  existing one. Nothing at the document-service level enforces one row per single type.
+- Every localized single type on `CMS multi-locale` holds real `en` content. There is no empty one
+  to borrow.
+- So: **snapshot the rows first, and assert the table is byte-identical afterwards.** Deleting a
+  single locale with `documents(uid).delete({ documentId, locale })` removes only that row and
+  leaves the other locales' drafts and published versions untouched — verified.
+- Prefer creating a throwaway document over touching real content, but check with `db.query` that
+  it is genuinely throwaway.
+
 ## AI SDK version conflicts with the host
 
 **Strapi depends on the AI SDK itself** — `@strapi/content-type-builder` pulls in `ai` (5.0.26 on

@@ -37,6 +37,12 @@ export default [
   },
 
   { method: 'GET', path: '/locales', handler: 'locale.find', config: { policies: [] } },
+  {
+    method: 'GET',
+    path: '/content-types',
+    handler: 'content-type.find',
+    config: { policies: [] },
+  },
   { method: 'POST', path: '/jobs', handler: 'job.create', config: { policies: [] } },
   { method: 'GET', path: '/jobs/:id', handler: 'job.findOne', config: { policies: [] } },
 ];

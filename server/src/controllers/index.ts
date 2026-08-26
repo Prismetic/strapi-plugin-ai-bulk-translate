@@ -1,3 +1,4 @@
+import contentType from './content-type.controller';
 import health from './health.controller';
 import job from './job.controller';
 import locale from './locale.controller';
@@ -10,4 +11,5 @@ export default {
   model,
   job,
   locale,
+  'content-type': contentType,
 };

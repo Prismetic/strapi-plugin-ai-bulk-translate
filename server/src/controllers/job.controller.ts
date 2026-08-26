@@ -40,13 +40,37 @@ const jobController = {
       );
     }
 
+    // A single type has exactly one document, so the plugin finds it rather than trusting the
+    // admin to have read an identifier off the route. Its edit view has no identifier to read.
+    let documentIds = input.documentIds ?? [];
+
+    if (documentIds.length === 0) {
+      if (schema.kind !== 'singleType') {
+        return badRequest(ctx, 'Choose at least one entry.');
+      }
+
+      const resolved = await plugin()
+        .service('translator')
+        .resolveSingleTypeDocumentId(input.contentType, input.sourceLocale);
+
+      if (!resolved) {
+        return badRequest(
+          ctx,
+          `"${input.contentType}" has nothing saved in ${input.sourceLocale} yet, so there is ` +
+            `nothing to translate.`
+        );
+      }
+
+      documentIds = [resolved];
+    }
+
     // Guarded server-side, so a mis-click or a crafted request cannot trigger an enormous bill.
     const cap = strapi.config.get('plugin::ai-bulk-translate.maxDocumentsPerRun') as number;
 
-    if (input.documentIds.length > cap) {
+    if (documentIds.length > cap) {
       return badRequest(
         ctx,
-        `This run covers ${input.documentIds.length} entries, above the limit of ${cap}. ` +
+        `This run covers ${documentIds.length} entries, above the limit of ${cap}. ` +
           `Select fewer entries or raise maxDocumentsPerRun in the plugin configuration.`
       );
     }
@@ -62,7 +86,7 @@ const jobController = {
         contentType: input.contentType,
         sourceLocale: input.sourceLocale,
         targetLocales: input.targetLocales,
-        documentIds: input.documentIds,
+        documentIds,
         overwriteDocumentIds: input.overwriteDocumentIds ?? [],
         modelId: input.modelId ?? null,
         createdById: ctx.state?.user?.id ?? null,

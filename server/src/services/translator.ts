@@ -81,6 +81,25 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
 
   return {
     /**
+     * Finds the one document behind a single type.
+     *
+     * A single type's edit view has no identifier in its route, so the plugin resolves it instead
+     * of asking the browser for one. `findMany` with a limit is used rather than the `findFirst`
+     * the plan assumed: the document service at 5.27 exposes no such method.
+     *
+     * Returns null when the single type has nothing saved in that locale yet.
+     */
+    async resolveSingleTypeDocumentId(contentType: string, locale: string): Promise<string | null> {
+      const found = (await strapi.documents(contentType as never).findMany({
+        locale,
+        status: 'draft',
+        limit: 1,
+      } as never)) as { documentId?: string }[] | null;
+
+      return found?.[0]?.documentId ?? null;
+    },
+
+    /**
      * Sends fields to the model and returns `path → translated value`.
      *
      * Uses structured output against a schema of exactly the requested keys, which is what makes

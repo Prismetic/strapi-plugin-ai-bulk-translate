@@ -1,16 +1,18 @@
 import { useMemo } from 'react';
 import { useIntl } from 'react-intl';
 
-import { PluginIcon } from '../PluginIcon';
+import { useTranslatableContentTypes } from '../../hooks/useTranslatableContentTypes';
 import { getTranslation } from '../../utils/getTranslation';
+import { PluginIcon } from '../PluginIcon';
 import { TranslateModal } from './TranslateModal';
 
 /**
- * Adds **Translate** to the edit view.
+ * Adds **Translate** to the edit view, for localized collection types *and* single types.
  *
- * Deliberately narrow in this slice: localized collection types only. Single types are the next
- * slice, and the point of keeping them out for now is that the translation service must prove it is
- * genuinely surface-agnostic before more surfaces are hung off it.
+ * Single types are the whole reason this is worth a slice of its own: they have no list view, so the
+ * edit view is their only surface, and they carry no identifier in their route. Both are handled
+ * without the translation service knowing which kind it is dealing with — that service is
+ * surface-agnostic, and this is what demonstrates it.
  *
  * The action hides itself rather than failing when it does not apply. A returned `null` removes it
  * from the menu, so an editor is never offered an action the server would reject.
@@ -29,32 +31,47 @@ const TranslateDocumentAction = ({
   document,
 }: DocumentActionContext) => {
   const { formatMessage } = useIntl();
+  const { isTranslatable } = useTranslatableContentTypes();
+
   const sourceLocale = document?.locale ?? null;
+  const translatable = isTranslatable(model);
+
+  /**
+   * A single type's identifier is resolved by the server, so an absent one is not a reason to hide
+   * the action — an empty list is the signal to resolve it. For a collection type it does mean
+   * there is nothing to act on: the entry is still being created.
+   */
+  const isSingleType = collectionType === 'single-types';
+  const documentIds = useMemo(() => (documentId ? [documentId] : []), [documentId]);
 
   /**
    * Stable across re-renders, so the polling progress view is not remounted — and its state reset —
    * every time the edit view re-renders while a job is running.
    */
   const content = useMemo(() => {
-    if (!model || !documentId || !sourceLocale) {
+    if (!model || !sourceLocale) {
       return null;
     }
 
     const Content = ({ onClose }: { onClose: () => void }) => (
       <TranslateModal
         contentType={model}
-        documentIds={[documentId]}
+        documentIds={documentIds}
         sourceLocale={sourceLocale}
         onClose={onClose}
       />
     );
 
     return Content;
-  }, [model, documentId, sourceLocale]);
+  }, [model, documentIds, sourceLocale]);
 
-  // No locale on the document means internationalization is not enabled for this content type,
-  // so there is nowhere to translate to.
-  if (collectionType !== 'collection-types' || !documentId || !sourceLocale || !content) {
+  // `translatable` is null until the content-type list loads; hiding the action until it is known
+  // is better than flashing one that might not apply.
+  if (!translatable || !sourceLocale || !content) {
+    return null;
+  }
+
+  if (!isSingleType && documentIds.length === 0) {
     return null;
   }
 
