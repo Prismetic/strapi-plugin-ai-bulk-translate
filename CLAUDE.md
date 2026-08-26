@@ -37,6 +37,11 @@ npx tsx .sandcastle/main.ts          # sandboxed — requires Docker
 need the plugin linked into a Strapi host that lives outside this repo, which a container would
 isolate you away from.
 
+`.sandcastle/package.json` marks that directory as ESM. The plugin itself is `"type": "commonjs"`
+because that is what Strapi loads, but the loop scripts use top-level `await` and import
+`@ai-hero/sandcastle`, which is ESM-only. Without the marker they fail to parse. Keep it — and keep
+it scoped to the directory, so re-copying the harness over this repo does not need renamed files.
+
 ## Golden rules
 
 - Prefer `afk`; reserve `hitl` for scope, architecture, risky changes, QA sign-off, and merges.
