@@ -104,7 +104,6 @@ const ModelsSection = () => {
             key={model.id}
             model={model}
             canManage={canManage}
-            isOnlyModel={models.length === 1}
             onEdit={() => setEditing(model)}
             onToggleEnabled={(enabled) => update(model.id, { enabled }).catch(() => undefined)}
             onMakeDefault={() => setDefault(model.id).catch(() => undefined)}

@@ -20,12 +20,11 @@ const model: RegisteredModel = {
 
 const noop = () => {};
 
-const renderCard = (canManage: boolean, over: Partial<RegisteredModel> = {}, isOnlyModel = false) =>
+const renderCard = (canManage: boolean, over: Partial<RegisteredModel> = {}) =>
   render(
     <ModelCard
       model={{ ...model, ...over }}
       canManage={canManage}
-      isOnlyModel={isOnlyModel}
       onEdit={noop}
       onToggleEnabled={noop}
       onMakeDefault={noop}
@@ -69,36 +68,35 @@ describe('ModelCard — protecting the default', () => {
   const enabled = (name: string) => screen.getByRole('button', { name }).hasAttribute('disabled');
 
   it('withholds Disable and Delete from the default when another model exists', () => {
-    renderCard(true, { isDefault: true }, false);
+    renderCard(true, { isDefault: true });
 
     expect(enabled('Disable')).toBe(true);
     expect(enabled('Delete')).toBe(true);
   });
 
   it('says why, rather than leaving two dead buttons unexplained', () => {
-    renderCard(true, { isDefault: true }, false);
+    renderCard(true, { isDefault: true });
 
     expect(screen.getByText(/Make another model the default/)).toBeTruthy();
   });
 
   it('still allows Edit on the default — renaming it loses nothing', () => {
-    renderCard(true, { isDefault: true }, false);
+    renderCard(true, { isDefault: true });
 
     expect(enabled('Edit')).toBe(false);
   });
 
-  it('lifts the protection when it is the only model, so the row is never undeletable', () => {
-    // With nothing else registered, "mark another model default first" is an instruction no one
-    // could follow. An install with no model is a recoverable state; an undeletable row is not.
-    renderCard(true, { isDefault: true }, true);
+  it('protects the default unconditionally, the sole model included', () => {
+    // Not a dead end even then: the hint says to register another model and mark it default, which
+    // is followable, and deleting the connection still cascades to its models.
+    renderCard(true, { isDefault: true });
 
-    expect(enabled('Delete')).toBe(false);
-    expect(enabled('Disable')).toBe(false);
-    expect(screen.queryByText(/Make another model the default/)).toBeNull();
+    expect(enabled('Delete')).toBe(true);
+    expect(enabled('Disable')).toBe(true);
   });
 
   it('leaves a non-default model freely removable', () => {
-    renderCard(true, { isDefault: false }, false);
+    renderCard(true, { isDefault: false });
 
     expect(enabled('Delete')).toBe(false);
     expect(enabled('Disable')).toBe(false);

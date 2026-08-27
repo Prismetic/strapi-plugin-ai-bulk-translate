@@ -13,15 +13,6 @@ interface ModelCardProps {
    * nothing that would change them is offered.
    */
   canManage: boolean;
-  /**
-   * Whether this is the only registered model.
-   *
-   * The default is protected from being disabled or deleted, so that an install cannot silently
-   * lose it and leave every run failing. That protection is lifted when nothing else is registered:
-   * "mark another model default first" is not an instruction anyone could follow with no other
-   * model to mark, and an undeletable row is a worse state than no default at all.
-   */
-  isOnlyModel: boolean;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onMakeDefault: () => void;
@@ -31,7 +22,6 @@ interface ModelCardProps {
 const ModelCard = ({
   model,
   canManage,
-  isOnlyModel,
   onEdit,
   onToggleEnabled,
   onMakeDefault,
@@ -39,7 +29,15 @@ const ModelCard = ({
 }: ModelCardProps) => {
   const { formatMessage } = useIntl();
 
-  const protectedAsDefault = model.isDefault && !isOnlyModel;
+  /**
+   * The default is never disabled or deleted from here, so an install cannot lose it by a slip and
+   * leave every run failing.
+   *
+   * Unconditional, including when it is the only model — which is not a dead end. The hint below
+   * says what to do and it is followable in that case too: register a second model and mark it
+   * default. And deleting the *connection* still cascades to its models, so nothing is stranded.
+   */
+  const protectedAsDefault = model.isDefault;
 
   return (
     <Box
