@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useIntl } from 'react-intl';
 
 import { getTranslation } from '../../utils/getTranslation';
+import { useModels } from '../../hooks/useModels';
 import { useProviders, type Provider } from '../../hooks/useProviders';
 import { useSettingsPermission } from '../../hooks/useSettingsPermission';
 import { ProviderCard } from './ProviderCard';
@@ -14,6 +15,12 @@ const ProvidersSection = () => {
   const { providers, catalog, encryptionAvailable, isLoading, create, update, remove, test } =
     useProviders();
   const { canManage } = useSettingsPermission();
+  const { models } = useModels();
+
+  // Disabling or deleting a connection cascades to its models, so the one holding the default would
+  // take the default down with it. Resolved here rather than in the card: the card should not have
+  // to know the whole model list to answer a question about itself.
+  const defaultModelProviderId = models.find((model) => model.isDefault)?.providerId ?? null;
 
   const [editing, setEditing] = useState<Provider | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -81,6 +88,7 @@ const ProvidersSection = () => {
             provider={provider}
             definition={catalog.find((entry) => entry.type === provider.type)}
             canManage={canManage}
+            holdsDefaultModel={provider.id === defaultModelProviderId}
             onEdit={() => setEditing(provider)}
             onDelete={() => remove(provider.id)}
             onToggleEnabled={(enabled) => update(provider.id, { enabled })}

@@ -20,11 +20,12 @@ const provider: Provider = {
 const noop = () => {};
 const neverTests = async () => ({ ok: true, message: 'unused' });
 
-const renderCard = (canManage: boolean) =>
+const renderCard = (canManage: boolean, holdsDefaultModel = false) =>
   render(
     <ProviderCard
       provider={provider}
       canManage={canManage}
+      holdsDefaultModel={holdsDefaultModel}
       onEdit={noop}
       onDelete={noop}
       onToggleEnabled={noop}
@@ -63,5 +64,42 @@ describe('ProviderCard', () => {
     expect(screen.getByText('OpenAI production')).toBeTruthy();
     expect(screen.getByText('Key ••••1234')).toBeTruthy();
     expect(screen.getByText('Enabled')).toBeTruthy();
+  });
+});
+
+/**
+ * Disabling or deleting a connection cascades to its models, so the connection holding the default
+ * would take the default down with it — the same hole the model card closes, one level up.
+ */
+describe('ProviderCard — the connection holding the default model', () => {
+  const isDisabled = (name: string) =>
+    screen.getByRole('button', { name }).hasAttribute('disabled');
+
+  it('withholds Disable and Delete', () => {
+    renderCard(true, true);
+
+    expect(isDisabled('Disable')).toBe(true);
+    expect(isDisabled('Delete')).toBe(true);
+  });
+
+  it('says why, rather than leaving two dead buttons unexplained', () => {
+    renderCard(true, true);
+
+    expect(screen.getByText(/Make a model on another connection the default/)).toBeTruthy();
+  });
+
+  it('still allows Edit and Test connection — neither can lose the default', () => {
+    renderCard(true, true);
+
+    expect(isDisabled('Edit')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Test connection' })).toBeTruthy();
+  });
+
+  it('leaves a connection without the default model freely removable', () => {
+    renderCard(true, false);
+
+    expect(isDisabled('Disable')).toBe(false);
+    expect(isDisabled('Delete')).toBe(false);
+    expect(screen.queryByText(/Make a model on another connection the default/)).toBeNull();
   });
 });

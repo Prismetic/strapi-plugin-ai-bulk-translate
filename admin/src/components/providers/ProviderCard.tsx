@@ -16,6 +16,14 @@ interface ProviderCardProps {
    * provider credit and is gated behind `settings.update` server-side.
    */
   canManage: boolean;
+  /**
+   * Whether the default model sits on this connection.
+   *
+   * Disabling or deleting a connection cascades to its models, so doing either here would remove
+   * the default and leave every run without one. Both controls are withheld until another
+   * connection's model is made the default — the same rule the model card applies, one level up.
+   */
+  holdsDefaultModel: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onToggleEnabled: (enabled: boolean) => void;
@@ -26,6 +34,7 @@ const ProviderCard = ({
   provider,
   definition,
   canManage,
+  holdsDefaultModel,
   onEdit,
   onDelete,
   onToggleEnabled,
@@ -77,18 +86,35 @@ const ProviderCard = ({
               <Button
                 variant="tertiary"
                 size="S"
+                disabled={holdsDefaultModel}
                 onClick={() => onToggleEnabled(!provider.enabled)}
               >
                 {provider.enabled
                   ? formatMessage({ id: getTranslation('action.disable'), defaultMessage: 'Disable' })
                   : formatMessage({ id: getTranslation('action.enable'), defaultMessage: 'Enable' })}
               </Button>
-              <Button variant="danger-light" size="S" startIcon={<Trash />} onClick={onDelete}>
+              <Button
+                variant="danger-light"
+                size="S"
+                startIcon={<Trash />}
+                disabled={holdsDefaultModel}
+                onClick={onDelete}
+              >
                 {formatMessage({ id: getTranslation('action.delete'), defaultMessage: 'Delete' })}
               </Button>
             </Flex>
           ) : null}
         </Flex>
+
+        {holdsDefaultModel ? (
+          <Typography variant="pi" textColor="neutral600">
+            {formatMessage({
+              id: getTranslation('providers.holdsDefaultModel'),
+              defaultMessage:
+                'The default model runs on this connection. Make a model on another connection the default before disabling or deleting it.',
+            })}
+          </Typography>
+        ) : null}
 
         <Flex gap={4} alignItems="center">
           <Typography variant="pi" textColor="neutral600">
