@@ -13,6 +13,15 @@ interface ModelCardProps {
    * nothing that would change them is offered.
    */
   canManage: boolean;
+  /**
+   * Whether this is the only registered model.
+   *
+   * The default is protected from being disabled or deleted, so that an install cannot silently
+   * lose it and leave every run failing. That protection is lifted when nothing else is registered:
+   * "mark another model default first" is not an instruction anyone could follow with no other
+   * model to mark, and an undeletable row is a worse state than no default at all.
+   */
+  isOnlyModel: boolean;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onMakeDefault: () => void;
@@ -22,12 +31,15 @@ interface ModelCardProps {
 const ModelCard = ({
   model,
   canManage,
+  isOnlyModel,
   onEdit,
   onToggleEnabled,
   onMakeDefault,
   onDelete,
 }: ModelCardProps) => {
   const { formatMessage } = useIntl();
+
+  const protectedAsDefault = model.isDefault && !isOnlyModel;
 
   return (
     <Box
@@ -86,13 +98,19 @@ const ModelCard = ({
                 variant="tertiary"
                 size="S"
                 onClick={() => onToggleEnabled(!model.enabled)}
-                disabled={!model.enabled && !model.providerEnabled}
+                disabled={protectedAsDefault || (!model.enabled && !model.providerEnabled)}
               >
                 {model.enabled
                   ? formatMessage({ id: getTranslation('action.disable'), defaultMessage: 'Disable' })
                   : formatMessage({ id: getTranslation('action.enable'), defaultMessage: 'Enable' })}
               </Button>
-              <Button variant="danger-light" size="S" startIcon={<Trash />} onClick={onDelete}>
+              <Button
+                variant="danger-light"
+                size="S"
+                startIcon={<Trash />}
+                disabled={protectedAsDefault}
+                onClick={onDelete}
+              >
                 {formatMessage({ id: getTranslation('action.delete'), defaultMessage: 'Delete' })}
               </Button>
             </Flex>
@@ -113,6 +131,16 @@ const ModelCard = ({
             )}
           </Typography>
         </Flex>
+
+        {protectedAsDefault ? (
+          <Typography variant="pi" textColor="neutral600">
+            {formatMessage({
+              id: getTranslation('models.defaultProtected'),
+              defaultMessage:
+                'This is the default model. Make another model the default before disabling or deleting it.',
+            })}
+          </Typography>
+        ) : null}
 
         {!model.providerEnabled ? (
           <Typography variant="pi" textColor="danger600">

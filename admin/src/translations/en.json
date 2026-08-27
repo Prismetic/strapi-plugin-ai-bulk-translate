@@ -15,6 +15,7 @@
   "ai-bulk-translate.models.add": "Register model",
   "ai-bulk-translate.models.add.title": "Register a model",
   "ai-bulk-translate.models.default": "Default",
+  "ai-bulk-translate.models.defaultProtected": "This is the default model. Make another model the default before disabling or deleting it.",
   "ai-bulk-translate.models.edit.title": "Edit model",
   "ai-bulk-translate.models.empty": "No models registered yet.",
   "ai-bulk-translate.models.error.title": "Could not save",
