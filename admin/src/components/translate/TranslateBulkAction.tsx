@@ -78,7 +78,7 @@ const TranslateBulkAction = ({ documents, model, collectionType }: BulkActionCon
   return {
     label: formatMessage({
       id: getTranslation('translate.bulk.action'),
-      defaultMessage: 'AI translate',
+      defaultMessage: 'AI Translate',
     }),
     icon: <PluginIcon />,
     dialog: {

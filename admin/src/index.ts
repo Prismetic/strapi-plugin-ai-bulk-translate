@@ -1,7 +1,7 @@
 import { Initializer } from './components/Initializer';
 import { PluginIcon } from './components/PluginIcon';
 import { TranslateBulkAction } from './components/translate/TranslateBulkAction';
-import { TranslateDocumentAction } from './components/translate/TranslateDocumentAction';
+import { TranslateEditViewButton } from './components/translate/TranslateEditViewButton';
 import { PLUGIN_ID } from './pluginId';
 
 export default {
@@ -29,13 +29,22 @@ export default {
   },
 
   bootstrap(app: any) {
-    const contentManager = app.getPlugin('content-manager').apis;
+    const contentManager = app.getPlugin('content-manager');
 
-    // Edit view: collection types and single types.
-    contentManager.addDocumentAction((actions: unknown[]) => [...actions, TranslateDocumentAction]);
+    /**
+     * Edit view: collection types and single types.
+     *
+     * Injected rather than registered as a document action. Strapi gives real buttons to only the
+     * first two `position: ['panel']` actions and Publish and Save take both, so a document action
+     * is always in the overflow menu. This zone renders directly below them, in the same panel.
+     */
+    contentManager.injectComponent('editView', 'right-links', {
+      name: 'ai-bulk-translate-edit-view-button',
+      Component: TranslateEditViewButton,
+    });
 
     // List view: collection types only — single types have no list view.
-    contentManager.addBulkAction((actions: unknown[]) => [...actions, TranslateBulkAction]);
+    contentManager.apis.addBulkAction((actions: unknown[]) => [...actions, TranslateBulkAction]);
   },
 
   async registerTrads({ locales }: { locales: string[] }) {
