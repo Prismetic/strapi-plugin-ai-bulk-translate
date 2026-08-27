@@ -20,6 +20,7 @@ Skills live in `.claude/skills/`. Load them by name:
 - `to-prd`, `prd-to-issues` — planning: idea to PRD to vertical-slice issues.
 - `do-work` — execute one issue end-to-end (plan, implement, validate with the configured feedback commands, commit).
 - `coding-standards` — load/derive this project's conventions before writing or reviewing code.
+- `verify-in-host` — push a build into a host Strapi and confirm the host is really running it. Anything touching the admin, permissions, or the AI SDK needs this; `npm test` does not cover it.
 - `improve-codebase-architecture`, `grill-me`, `handoff`, `write-a-skill` — architecture, plan stress-testing, session handoff, and authoring new skills.
 
 ## Autonomous loop
