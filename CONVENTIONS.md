@@ -82,6 +82,26 @@ given, so any non-empty value works and only a missing key causes `encrypt()` to
 - React is pinned to 18 and react-router-dom to 6 to match both hosts. `@strapi/icons` peers on
   React 18, so React 19 will not install.
 
+## Other plugins' contracts are not what they look like
+
+Two traps found the same afternoon, both of which typecheck, run, and answer wrongly in silence.
+
+**`i18n`'s `locales.find()` does not carry `isDefault`.** It returns raw rows; i18n's own
+controller decorates them afterwards with `setIsDefault`, because the default locale lives in the
+core store, not on the locale row. `Boolean(locale.isDefault)` therefore answers `false` for every
+locale, with no error anywhere. Read the default through `defaultLocaleCode`
+(`server/src/services/default-locale.ts`), which asks `getDefaultLocale()`.
+
+**The Content Manager's create route matches the edit route.** Creation is
+`/…/:slug/create`, and the edit route is `:collectionType/:slug/:id`, so `useParams().id` is the
+literal string `create` on a brand-new entry — truthy, and not an identifier. Use
+`documentIdFromRoute` rather than reading `params.id` directly.
+
+The general rule both illustrate: **when a value comes from another plugin, verify what it actually
+contains rather than what its type says.** A unit test over our own logic will not catch this — in
+both cases the logic was right and the input was a lie. Stub the *real* contract when testing the
+boundary, so re-deriving the value the wrong way fails the test instead of shipping.
+
 ## Commits
 
 - Explain the decision, not the diff. Say why, and note anything the next iteration should know.
