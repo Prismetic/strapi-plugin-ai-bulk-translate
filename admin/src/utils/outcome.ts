@@ -1,4 +1,5 @@
 import type { DocumentLocaleStatus } from '../hooks/useLocaleStatus';
+import type { JobItem } from '../hooks/useTranslationJob';
 
 /**
  * Turns the locale-status matrix and the editor's opt-ins into the outcome of pressing Translate.
@@ -20,7 +21,11 @@ export interface Conflict {
 }
 
 export type BlockedReason =
-  'no-target-locales' | 'nothing-in-source' | 'conflicts-not-authorised' | null;
+  | 'no-usable-model'
+  | 'no-target-locales'
+  | 'nothing-in-source'
+  | 'conflicts-not-authorised'
+  | null;
 
 export interface Outcome {
   conflicts: Conflict[];
@@ -47,9 +52,22 @@ export interface OutcomeInput {
   targetLocales: string[];
   /** Document ids the editor ticked for overwrite. */
   authorised: string[];
+  /**
+   * Whether any model is both enabled and reachable through an enabled connection.
+   *
+   * Optional and assumed `true`, because the model list arrives after the first render: treating
+   * "not loaded yet" as "none available" would flash the blocked message and disable the button
+   * for the moment before the list returns. The caller passes `false` only once it knows.
+   */
+  hasUsableModel?: boolean;
 }
 
-export const resolveOutcome = ({ rows, targetLocales, authorised }: OutcomeInput): Outcome => {
+export const resolveOutcome = ({
+  rows,
+  targetLocales,
+  authorised,
+  hasUsableModel = true,
+}: OutcomeInput): Outcome => {
   const included = rows.filter((row) => !row.excluded);
   const authorisedSet = new Set(authorised);
 
@@ -83,6 +101,13 @@ export const resolveOutcome = ({ rows, targetLocales, authorised }: OutcomeInput
     .map((conflict) => conflict.documentId);
 
   const resolveBlocked = (): BlockedReason => {
+    // First, because it is the one blocker the editor cannot work around by changing the selection.
+    // Telling someone to choose a locale when no model exists sends them down a path that ends in a
+    // run failing server-side with "No usable model is configured".
+    if (!hasUsableModel) {
+      return 'no-usable-model';
+    }
+
     if (targetLocales.length === 0) {
       return 'no-target-locales';
     }
@@ -116,4 +141,48 @@ export const resolveOutcome = ({ rows, targetLocales, authorised }: OutcomeInput
     hasWork: blockedReason === null,
     blockedReason,
   };
+};
+
+export interface DocumentProgress {
+  documentId: string;
+  /** The entry's title, or its id when no title is known for it. */
+  title: string;
+  items: JobItem[];
+}
+
+/**
+ * Groups a run's per-item results under the entry they belong to.
+ *
+ * A flat list keyed only by locale is unreadable the moment a run covers more than one entry: five
+ * entries into two locales produce ten rows that all look alike, and "which entry failed" — which
+ * the run is supposed to answer — becomes unanswerable.
+ *
+ * Titles come from the preview the editor already saw, so the run reports entries by the same name
+ * it promised them under. An entry with no known title falls back to its id rather than rendering
+ * blank: an opaque identifier is still better than nothing to correlate against.
+ *
+ * Document order follows first appearance in `items`, which is the order the server queued them.
+ */
+export const groupProgressByDocument = (
+  items: JobItem[],
+  titles: Record<string, string>
+): DocumentProgress[] => {
+  const groups = new Map<string, DocumentProgress>();
+
+  for (const item of items) {
+    const existing = groups.get(item.documentId);
+
+    if (existing) {
+      existing.items.push(item);
+      continue;
+    }
+
+    groups.set(item.documentId, {
+      documentId: item.documentId,
+      title: titles[item.documentId] ?? item.documentId,
+      items: [item],
+    });
+  }
+
+  return [...groups.values()];
 };

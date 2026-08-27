@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveOutcome } from './outcome';
+import { groupProgressByDocument, resolveOutcome } from './outcome';
 
 import type { DocumentLocaleStatus } from '../hooks/useLocaleStatus';
+import type { JobItem } from '../hooks/useTranslationJob';
 
 const row = (
   documentId: string,
@@ -205,5 +206,86 @@ describe('resolveOutcome — the empty-work guard', () => {
 
     expect(outcome.hasWork).toBe(true);
     expect(outcome.blockedReason).toBeNull();
+  });
+});
+
+describe('resolveOutcome — model availability', () => {
+  const oneTranslatableRow = { rows: [row('a', 'Accommodation', { de: 'empty' })], targetLocales: ['de'], authorised: [] };
+
+  it('blocks the run when no model is usable, even though the locales would produce work', () => {
+    // Without this the button is live, the run starts, and every item fails server-side with
+    // "No usable model is configured" — which the editor cannot act on from the dialog.
+    const outcome = resolveOutcome({ ...oneTranslatableRow, hasUsableModel: false });
+
+    expect(outcome.blockedReason).toBe('no-usable-model');
+    expect(outcome.hasWork).toBe(false);
+  });
+
+  it('reports the missing model ahead of any other blocker, being the one nothing works around', () => {
+    const outcome = resolveOutcome({
+      rows: [],
+      targetLocales: [],
+      authorised: [],
+      hasUsableModel: false,
+    });
+
+    expect(outcome.blockedReason).toBe('no-usable-model');
+  });
+
+  it('does not block when a model is usable', () => {
+    expect(resolveOutcome({ ...oneTranslatableRow, hasUsableModel: true }).hasWork).toBe(true);
+  });
+
+  it('assumes a model until told otherwise, so the button does not flicker while models load', () => {
+    expect(resolveOutcome(oneTranslatableRow).hasWork).toBe(true);
+  });
+});
+
+describe('groupProgressByDocument', () => {
+  const item = (documentId: string, locale: string, over: Partial<JobItem> = {}): JobItem => ({
+    documentId,
+    locale,
+    status: 'translated',
+    ...over,
+  });
+
+  it('gathers every locale of an entry under one title', () => {
+    const groups = groupProgressByDocument(
+      [item('a', 'de'), item('b', 'de'), item('a', 'fr')],
+      { a: 'Accommodation', b: 'Dining' }
+    );
+
+    expect(groups).toHaveLength(2);
+    expect(groups[0].title).toBe('Accommodation');
+    expect(groups[0].items.map((i) => i.locale)).toEqual(['de', 'fr']);
+    expect(groups[1].title).toBe('Dining');
+  });
+
+  it('keeps the order the server queued them in, not the order titles were supplied', () => {
+    const groups = groupProgressByDocument([item('b', 'de'), item('a', 'de')], {
+      a: 'Accommodation',
+      b: 'Dining',
+    });
+
+    expect(groups.map((g) => g.documentId)).toEqual(['b', 'a']);
+  });
+
+  it('falls back to the id when no title is known, rather than rendering a blank row', () => {
+    const groups = groupProgressByDocument([item('a', 'de')], {});
+
+    expect(groups[0].title).toBe('a');
+  });
+
+  it('carries failure and skip reasons through untouched', () => {
+    const groups = groupProgressByDocument(
+      [
+        item('a', 'de', { status: 'failed', error: 'Rate limited' }),
+        item('a', 'fr', { status: 'skipped', skippedReason: 'Already translated' }),
+      ],
+      { a: 'Accommodation' }
+    );
+
+    expect(groups[0].items[0].error).toBe('Rate limited');
+    expect(groups[0].items[1].skippedReason).toBe('Already translated');
   });
 });

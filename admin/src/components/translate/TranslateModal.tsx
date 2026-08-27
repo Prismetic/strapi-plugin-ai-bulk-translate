@@ -1,5 +1,6 @@
 import {
   Alert,
+  Badge,
   Box,
   Button,
   Checkbox,
@@ -17,10 +18,10 @@ import { useLocales } from '../../hooks/useLocales';
 import { useModels } from '../../hooks/useModels';
 import { useTranslationJob, type JobItem } from '../../hooks/useTranslationJob';
 import { getTranslation } from '../../utils/getTranslation';
-import { resolveOutcome, type BlockedReason } from '../../utils/outcome';
+import { groupProgressByDocument, resolveOutcome, type BlockedReason } from '../../utils/outcome';
 import { ConflictList } from './ConflictList';
 import { LocalePreview } from './LocalePreview';
-import { ModelPicker, preselectedModelId } from './ModelPicker';
+import { ModelPicker, preselectedModelId, selectableModels } from './ModelPicker';
 
 interface TranslateModalProps {
   contentType: string;
@@ -64,9 +65,13 @@ const TranslateModal = ({
   const [selected, setSelected] = useState<string[]>([]);
   const [authorised, setAuthorised] = useState<string[]>([]);
 
-  const { models } = useModels();
+  const { models, isLoading: modelsLoading } = useModels();
   const [modelId, setModelId] = useState<number | null>(null);
   const [modelTouched, setModelTouched] = useState(false);
+
+  // While the list is still loading, treated as available: the alternative flashes "no model" and a
+  // disabled button for the moment before it returns.
+  const hasUsableModel = modelsLoading || selectableModels(models).length > 0;
 
   // The list arrives after the first render, so the default is applied when it does — but only
   // until the editor makes a choice of their own, which `modelTouched` protects from being
@@ -85,9 +90,16 @@ const TranslateModal = ({
     rows: preview.rows,
     targetLocales: selected,
     authorised,
+    hasUsableModel,
   });
 
   const targets = locales.filter((locale) => locale.code !== sourceLocale);
+
+  // Built from the preview rather than refetched: the run should name entries exactly as the dialog
+  // promised them, and the preview is still in state while the job runs.
+  const titlesByDocument = Object.fromEntries(
+    preview.rows.map((entry) => [entry.documentId, entry.title])
+  );
 
   const toggle = (code: string) =>
     setSelected((current) =>
@@ -125,6 +137,15 @@ const TranslateModal = ({
   };
 
   const blockedMessage = (reason: BlockedReason) => {
+    // Deliberately shorter than the picker's own message above it. The picker explains why there is
+    // no control to use; this states what it means for the run, directly above the disabled button.
+    if (reason === 'no-usable-model') {
+      return formatMessage({
+        id: getTranslation('outcome.blocked.noModel'),
+        defaultMessage: 'This run cannot start until a model is available.',
+      });
+    }
+
     if (reason === 'no-target-locales') {
       return formatMessage({
         id: getTranslation('outcome.blocked.noLocales'),
@@ -282,7 +303,9 @@ const TranslateModal = ({
 
                   {/* The resolved outcome, stated in words directly before the confirm button, so
                       the last thing read is what will happen rather than a count of rows. */}
-                  {!preview.isLoading && preview.rows.length > 0 ? (
+                  {/* Also shown when no model is usable, even with no preview rows yet — otherwise
+                      the button is disabled with nothing above it saying why. */}
+                  {(!preview.isLoading && preview.rows.length > 0) || !hasUsableModel ? (
                     <Box
                       padding={3}
                       hasRadius
@@ -345,13 +368,35 @@ const TranslateModal = ({
                 </Typography>
               </Flex>
 
-              {job.items.map((item) => (
-                <Box key={`${item.documentId}-${item.locale}`}>
-                  <Typography variant="pi" textColor={statusColor(item.status)}>
-                    {`${item.locale}: ${item.status}`}
-                    {item.error ? ` — ${item.error}` : ''}
-                    {item.skippedReason ? ` — ${item.skippedReason}` : ''}
-                  </Typography>
+              {/* Grouped under the entry rather than listed flat: a bulk run over several entries
+                  otherwise produces rows that differ only by locale, and "which entry failed" —
+                  which the run exists to answer — cannot be read off them. */}
+              {groupProgressByDocument(job.items, titlesByDocument).map((group) => (
+                <Box
+                  key={group.documentId}
+                  padding={3}
+                  hasRadius
+                  background="neutral0"
+                  borderColor="neutral200"
+                  borderWidth="1px"
+                  borderStyle="solid"
+                >
+                  <Flex direction="column" alignItems="stretch" gap={2}>
+                    <Typography variant="omega" fontWeight="semiBold">
+                      {group.title}
+                    </Typography>
+
+                    {group.items.map((item) => (
+                      <Flex key={item.locale} gap={2} alignItems="baseline">
+                        <Badge>{item.locale}</Badge>
+                        <Typography variant="pi" textColor={statusColor(item.status)}>
+                          {item.status}
+                          {item.error ? ` — ${item.error}` : ''}
+                          {item.skippedReason ? ` — ${item.skippedReason}` : ''}
+                        </Typography>
+                      </Flex>
+                    ))}
+                  </Flex>
                 </Box>
               ))}
             </Flex>
@@ -362,8 +407,10 @@ const TranslateModal = ({
       <Modal.Footer>
         <Button variant="tertiary" onClick={onClose}>
           {formatMessage({
-            id: getTranslation(job && !isRunning ? 'action.close' : 'action.cancel'),
-            defaultMessage: job && !isRunning ? 'Close' : 'Cancel',
+            // Only before a run starts is this a cancellation. Once a job exists the button just
+            // closes the dialog — the run continues server-side — so it must not claim otherwise.
+            id: getTranslation(job ? 'action.close' : 'action.cancel'),
+            defaultMessage: job ? 'Close' : 'Cancel',
           })}
         </Button>
 

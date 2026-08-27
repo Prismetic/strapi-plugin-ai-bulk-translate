@@ -33,6 +33,7 @@
   "ai-bulk-translate.models.via": "via {provider}",
   "ai-bulk-translate.outcome.blocked.conflicts": "Every locale you chose already has a translation. Tick the entries you want to replace, or choose another locale.",
   "ai-bulk-translate.outcome.blocked.noLocales": "Choose at least one locale to translate into.",
+  "ai-bulk-translate.outcome.blocked.noModel": "This run cannot start until a model is available.",
   "ai-bulk-translate.outcome.blocked.noSource": "Nothing selected has content in {locale} to translate.",
   "ai-bulk-translate.outcome.summary": "{create, plural, =0 {} one {Will create # translation} other {Will create # translations}}{both, select, yes {, and } other {}}{overwrite, plural, =0 {} one {will replace # existing translation} other {will replace # existing translations}}. {skip, plural, =0 {} one {# existing translation is left untouched.} other {# existing translations are left untouched.}}",
   "ai-bulk-translate.plugin.name": "AI Bulk Translate",
