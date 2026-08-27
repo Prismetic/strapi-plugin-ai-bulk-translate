@@ -30,3 +30,16 @@ export const canOfferTranslation = ({
 
   return isSingleType || documentId !== null;
 };
+
+/**
+ * The entry the edit view is showing, from the route's `:id` segment.
+ *
+ * `create` is a path segment, not an identifier: the Content Manager routes creation as
+ * `/…/:slug/create`, which matches the same `:collectionType/:slug/:id` pattern as a saved entry.
+ * Taking it at face value put the translate button on an entry that does not exist yet — there is
+ * nothing to read a source locale from, and the run would have had nothing to translate.
+ *
+ * An absent segment is a single type, or a clone; both are handled by the caller rather than here.
+ */
+export const documentIdFromRoute = (id: string | undefined): string | null =>
+  !id || id === 'create' ? null : id;

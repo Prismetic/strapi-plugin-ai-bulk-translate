@@ -1,5 +1,6 @@
 import { jobCreateSchema } from '../validation/job';
 import { formatZodError } from '../validation/provider';
+import { defaultLocaleCode } from '../services/default-locale';
 import { rejectTargetLocales } from '../validation/target-locales';
 
 import type { Context } from 'koa';
@@ -83,12 +84,7 @@ const jobController = {
      * Read from i18n at request time rather than trusted from the client: the default locale is the
      * one thing a run must never overwrite, so the answer has to come from the install itself.
      */
-    const locales = (await strapi.plugin('i18n').service('locales').find()) as {
-      code: string;
-      isDefault?: boolean;
-    }[];
-
-    const defaultLocale = locales.find((locale) => locale.isDefault)?.code ?? null;
+    const defaultLocale = await defaultLocaleCode(strapi);
 
     const refusal = rejectTargetLocales({
       targetLocales: input.targetLocales,

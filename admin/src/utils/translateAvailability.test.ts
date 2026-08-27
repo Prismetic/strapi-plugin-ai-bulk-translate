@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canOfferTranslation } from './translateAvailability';
+import { canOfferTranslation, documentIdFromRoute } from './translateAvailability';
 
 const collectionEntry = {
   canTranslate: true,
@@ -43,5 +43,28 @@ describe('canOfferTranslation', () => {
     expect(canOfferTranslation({ ...collectionEntry, isSingleType: true, documentId: null })).toBe(
       true
     );
+  });
+});
+
+describe('documentIdFromRoute', () => {
+  it('reads the identifier of a saved entry', () => {
+    expect(documentIdFromRoute('abc123')).toBe('abc123');
+  });
+
+  /**
+   * The Content Manager routes creation as `/…/:slug/create`, which matches the same
+   * `:collectionType/:slug/:id` pattern as an entry. Taking the segment at face value made the
+   * button appear on an entry that does not exist yet.
+   */
+  it('treats the create route as no entry, because "create" is a path segment not an id', () => {
+    expect(documentIdFromRoute('create')).toBeNull();
+  });
+
+  it('treats an absent segment as no entry — a single type, or a clone', () => {
+    expect(documentIdFromRoute(undefined)).toBeNull();
+  });
+
+  it('treats an empty segment as no entry', () => {
+    expect(documentIdFromRoute('')).toBeNull();
   });
 });

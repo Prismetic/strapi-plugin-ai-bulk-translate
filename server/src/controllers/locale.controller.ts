@@ -1,3 +1,5 @@
+import { defaultLocaleCode } from '../services/default-locale';
+
 import type { Context } from 'koa';
 
 /**
@@ -11,14 +13,16 @@ const localeController = {
     const locales = (await strapi.plugin('i18n').service('locales').find()) as {
       code: string;
       name: string;
-      isDefault?: boolean;
     }[];
+
+    // The rows do not carry it — see defaultLocaleCode for why reading isDefault here is a trap.
+    const defaultCode = await defaultLocaleCode(strapi);
 
     ctx.body = {
       data: locales.map((locale) => ({
         code: locale.code,
         name: locale.name,
-        isDefault: Boolean(locale.isDefault),
+        isDefault: locale.code === defaultCode,
       })),
     };
   },

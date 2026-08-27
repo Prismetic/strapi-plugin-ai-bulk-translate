@@ -8,7 +8,7 @@ import { useLocales } from '../../hooks/useLocales';
 import { useTranslatableContentTypes } from '../../hooks/useTranslatableContentTypes';
 import { useTranslatePermission } from '../../hooks/useTranslatePermission';
 import { getTranslation } from '../../utils/getTranslation';
-import { canOfferTranslation } from '../../utils/translateAvailability';
+import { canOfferTranslation, documentIdFromRoute } from '../../utils/translateAvailability';
 import { PluginIcon } from '../PluginIcon';
 import { TranslateModal } from './TranslateModal';
 
@@ -46,7 +46,7 @@ const TranslateEditViewButton = ({ slug }: InjectedProps) => {
 
   const model = slug ?? params.slug ?? null;
   const isSingleType = params.collectionType === 'single-types';
-  const documentId = params.id ?? null;
+  const documentId = documentIdFromRoute(params.id);
 
   /**
    * The Content Manager puts the locale being edited in the query string. When it is absent the
