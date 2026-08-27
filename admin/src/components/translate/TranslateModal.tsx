@@ -19,6 +19,7 @@ import { useModels } from '../../hooks/useModels';
 import { useTranslationJob, type JobItem } from '../../hooks/useTranslationJob';
 import { getTranslation } from '../../utils/getTranslation';
 import { groupProgressByDocument, resolveOutcome, type BlockedReason } from '../../utils/outcome';
+import { translationTargets } from '../../utils/translationTargets';
 import { ConflictList } from './ConflictList';
 import { LocalePreview } from './LocalePreview';
 import { ModelPicker, preselectedModelId, selectableModels } from './ModelPicker';
@@ -100,7 +101,7 @@ const TranslateModal = ({
     modelResolves,
   });
 
-  const targets = locales.filter((locale) => locale.code !== sourceLocale);
+  const targets = translationTargets(locales, sourceLocale);
 
   // Built from the preview rather than refetched: the run should name entries exactly as the dialog
   // promised them, and the preview is still in state while the job runs.

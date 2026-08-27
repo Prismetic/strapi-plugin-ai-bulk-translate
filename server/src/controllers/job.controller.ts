@@ -1,5 +1,6 @@
 import { jobCreateSchema } from '../validation/job';
 import { formatZodError } from '../validation/provider';
+import { rejectTargetLocales } from '../validation/target-locales';
 
 import type { Context } from 'koa';
 
@@ -78,8 +79,25 @@ const jobController = {
       );
     }
 
-    if (input.targetLocales.includes(input.sourceLocale)) {
-      return badRequest(ctx, 'The source locale cannot also be a target locale.');
+    /**
+     * Read from i18n at request time rather than trusted from the client: the default locale is the
+     * one thing a run must never overwrite, so the answer has to come from the install itself.
+     */
+    const locales = (await strapi.plugin('i18n').service('locales').find()) as {
+      code: string;
+      isDefault?: boolean;
+    }[];
+
+    const defaultLocale = locales.find((locale) => locale.isDefault)?.code ?? null;
+
+    const refusal = rejectTargetLocales({
+      targetLocales: input.targetLocales,
+      sourceLocale: input.sourceLocale,
+      defaultLocale,
+    });
+
+    if (refusal !== null) {
+      return badRequest(ctx, refusal);
     }
 
     /**
@@ -144,7 +162,10 @@ const jobController = {
     }
 
     if (job.status === 'processing' || job.status === 'queued') {
-      return badRequest(ctx, 'This run is still in progress. Wait for it to finish before retrying.');
+      return badRequest(
+        ctx,
+        'This run is still in progress. Wait for it to finish before retrying.'
+      );
     }
 
     const reset = await jobs.resetFailedItems(id);
