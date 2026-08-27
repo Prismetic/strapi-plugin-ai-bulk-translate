@@ -69,9 +69,15 @@ const TranslateModal = ({
   const [modelId, setModelId] = useState<number | null>(null);
   const [modelTouched, setModelTouched] = useState(false);
 
-  // While the list is still loading, treated as available: the alternative flashes "no model" and a
-  // disabled button for the moment before it returns.
-  const hasUsableModel = modelsLoading || selectableModels(models).length > 0;
+  // While the list is still loading, both are treated as satisfied: the alternative flashes a
+  // blocked message and a disabled button for the moment before it returns.
+  const usableModels = selectableModels(models);
+  const hasUsableModel = modelsLoading || usableModels.length > 0;
+
+  // A model existing is not the same as this run finding one. Sent without an explicit choice, the
+  // server falls back to its default — so with no default and no choice, nothing resolves.
+  const modelResolves =
+    modelsLoading || modelId !== null || usableModels.some((model) => model.isDefault);
 
   // The list arrives after the first render, so the default is applied when it does — but only
   // until the editor makes a choice of their own, which `modelTouched` protects from being
@@ -91,6 +97,7 @@ const TranslateModal = ({
     targetLocales: selected,
     authorised,
     hasUsableModel,
+    modelResolves,
   });
 
   const targets = locales.filter((locale) => locale.code !== sourceLocale);
@@ -143,6 +150,14 @@ const TranslateModal = ({
       return formatMessage({
         id: getTranslation('outcome.blocked.noModel'),
         defaultMessage: 'This run cannot start until a model is available.',
+      });
+    }
+
+    // Unlike the missing-model case, this one the editor can fix from here — so it says how.
+    if (reason === 'no-model-selected') {
+      return formatMessage({
+        id: getTranslation('outcome.blocked.noModelSelected'),
+        defaultMessage: 'Choose a model for this run — no default is set.',
       });
     }
 
@@ -305,7 +320,9 @@ const TranslateModal = ({
                       the last thing read is what will happen rather than a count of rows. */}
                   {/* Also shown when no model is usable, even with no preview rows yet — otherwise
                       the button is disabled with nothing above it saying why. */}
-                  {(!preview.isLoading && preview.rows.length > 0) || !hasUsableModel ? (
+                  {(!preview.isLoading && preview.rows.length > 0) ||
+                  !hasUsableModel ||
+                  !modelResolves ? (
                     <Box
                       padding={3}
                       hasRadius

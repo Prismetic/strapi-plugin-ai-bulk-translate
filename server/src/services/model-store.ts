@@ -136,6 +136,25 @@ const modelStore = ({ strapi }: { strapi: Core.Strapi }) => {
         return this.setDefault(row.id);
       }
 
+      /**
+       * The first model on an install becomes the default without being asked.
+       *
+       * This is the one case where the right default is unambiguous — there is nothing else to
+       * choose — so it does not conflict with the rule that a run must never use a model nobody
+       * selected. Without it a fresh install sits in a state where every run fails with "No usable
+       * model is configured", reached by doing nothing wrong.
+       *
+       * Deliberately only the *first*: a later model never displaces a default silently. Skipped
+       * when the model is disabled, which `setDefault` would refuse in any case.
+       */
+      if (enabled) {
+        const existing = (await query().findMany({})) as ModelRow[];
+
+        if (existing.length === 1) {
+          return this.setDefault(row.id);
+        }
+      }
+
       return row;
     },
 

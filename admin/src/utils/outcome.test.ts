@@ -289,3 +289,26 @@ describe('groupProgressByDocument', () => {
     expect(groups[0].items[1].skippedReason).toBe('Already translated');
   });
 });
+
+describe('resolveOutcome — the run must actually resolve a model', () => {
+  const work = { rows: [row('a', 'Accommodation', { de: 'empty' })], targetLocales: ['de'], authorised: [] };
+
+  it('blocks when models exist but none is chosen and none is default', () => {
+    // The hole this closes: `hasUsableModel` only says a model exists. A run sent with no explicit
+    // choice falls back to the server's default, and if there is none every item fails.
+    const outcome = resolveOutcome({ ...work, hasUsableModel: true, modelResolves: false });
+
+    expect(outcome.blockedReason).toBe('no-model-selected');
+    expect(outcome.hasWork).toBe(false);
+  });
+
+  it('reports no model at all ahead of none chosen, being the one the editor cannot fix', () => {
+    const outcome = resolveOutcome({ ...work, hasUsableModel: false, modelResolves: false });
+
+    expect(outcome.blockedReason).toBe('no-usable-model');
+  });
+
+  it('does not block once a model resolves', () => {
+    expect(resolveOutcome({ ...work, modelResolves: true }).hasWork).toBe(true);
+  });
+});

@@ -178,3 +178,62 @@ describe('model-store', () => {
     expect(resolved?.provider.label).toBe('OpenAI production');
   });
 });
+
+/**
+ * User story 41. A fresh install has no default until someone sets one, and a run that makes no
+ * explicit choice then fails with "No usable model is configured" — a dead end reached by doing
+ * nothing wrong. The first model registered is the one case where the right default is unambiguous.
+ */
+describe('model-store — the first model becomes the default', () => {
+  let harness: Harness;
+
+  beforeEach(() => {
+    harness = createHarness({
+      [PROVIDER_UID]: [openaiProvider(), openaiProvider({ id: 2, label: 'OpenAI staging' })],
+      [MODEL_UID]: [],
+    });
+  });
+
+  it('makes the very first model default without being asked', async () => {
+    const first = await harness.models.create({
+      providerId: 1,
+      modelId: 'gpt-5.4-mini',
+      label: 'Mini',
+    });
+
+    expect(first.isDefault).toBe(true);
+  });
+
+  it('leaves later models alone, so the default is not silently reassigned', async () => {
+    await harness.models.create({ providerId: 1, modelId: 'gpt-5.4-mini', label: 'Mini' });
+    const second = await harness.models.create({
+      providerId: 2,
+      modelId: 'gpt-5.4',
+      label: 'Full',
+    });
+
+    expect(second.isDefault).toBe(false);
+  });
+
+  it('still honours an explicit isDefault on the first model', async () => {
+    const first = await harness.models.create({
+      providerId: 1,
+      modelId: 'gpt-5.4-mini',
+      label: 'Mini',
+      isDefault: true,
+    });
+
+    expect(first.isDefault).toBe(true);
+  });
+
+  it('does not make a disabled first model the default, which setDefault would refuse anyway', async () => {
+    const first = await harness.models.create({
+      providerId: 1,
+      modelId: 'gpt-5.4-mini',
+      label: 'Mini',
+      enabled: false,
+    });
+
+    expect(first.isDefault).toBe(false);
+  });
+});

@@ -22,6 +22,7 @@ export interface Conflict {
 
 export type BlockedReason =
   | 'no-usable-model'
+  | 'no-model-selected'
   | 'no-target-locales'
   | 'nothing-in-source'
   | 'conflicts-not-authorised'
@@ -60,6 +61,16 @@ export interface OutcomeInput {
    * for the moment before the list returns. The caller passes `false` only once it knows.
    */
   hasUsableModel?: boolean;
+  /**
+   * Whether this run will actually resolve a model — either the editor chose one, or a usable
+   * default exists for the server to fall back to.
+   *
+   * Distinct from `hasUsableModel` on purpose. A model existing is not the same as this run finding
+   * one: with models registered but none marked default, a run sent without an explicit choice
+   * reaches `resolveDefault()`, gets nothing, and fails every item. The editor can fix this one by
+   * picking a model, which is why it is reported separately.
+   */
+  modelResolves?: boolean;
 }
 
 export const resolveOutcome = ({
@@ -67,6 +78,7 @@ export const resolveOutcome = ({
   targetLocales,
   authorised,
   hasUsableModel = true,
+  modelResolves = true,
 }: OutcomeInput): Outcome => {
   const included = rows.filter((row) => !row.excluded);
   const authorisedSet = new Set(authorised);
@@ -106,6 +118,12 @@ export const resolveOutcome = ({
     // run failing server-side with "No usable model is configured".
     if (!hasUsableModel) {
       return 'no-usable-model';
+    }
+
+    // After `no-usable-model`, because that one the editor cannot fix from here and this one they
+    // can — reporting the fixable problem while a more fundamental one stands would misdirect.
+    if (!modelResolves) {
+      return 'no-model-selected';
     }
 
     if (targetLocales.length === 0) {
