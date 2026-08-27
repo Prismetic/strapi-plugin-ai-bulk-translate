@@ -89,10 +89,33 @@ given, so any non-empty value works and only a missing key causes `encrypt()` to
 
 ## Working with the linked host
 
-`yalc push` syncs built files only — it does **not** install the plugin's dependencies into the
-host. After adding any dependency to the plugin, run `npm install` in the host as well, or the
-plugin will fail at runtime with `Cannot find package '…'` from a dynamic import. That failure
-surfaces only when the code path runs, not at build or startup.
+Push a build into a host with `npm run push`, which builds, packs, installs the tarball, verifies
+it landed, and clears the Vite cache:
+
+```
+npm run push -- "../CMS multi-locale"      # or set PLUGIN_HOST and drop the argument
+```
+
+Restarting the dev server and hard-refreshing the browser are still yours to do, in that order.
+
+**This replaced yalc**, which linked `dist/` only. A tarball is a real npm install: it nests the AI
+SDK correctly and brings the plugin's dependencies with it, both of which had to be repaired by hand
+under yalc, and it exercises the artefact users actually receive. Two things carried over from that
+switch are load-bearing:
+
+- **A plain `npm install` in the host will not pick up a rebuilt tarball of the same version.** The
+  lockfile already lists the spec, npm reports "up to date", and the host silently keeps serving the
+  previous build. Only `npm install <path-to-tgz>` re-extracts — verified on npm 11.6.2. That is why
+  `push-to-host.mjs` always passes the path; do not reinstall by hand without it.
+- **Verify by integrity hash, not timestamp.** `npm pack --json` prints the tarball's `integrity`,
+  and npm records that exact string in the host's `package-lock.json` under
+  `packages["node_modules/strapi-plugin-ai-bulk-translate"]`. `npm run push` compares the two and
+  fails if they differ. Under yalc this took a `shasum -a256` of two directories, because yalc
+  preserved source mtimes and the dates lied.
+
+Tarballs are written to `.host-builds/`, which is gitignored. The host's `package.json` ends up
+pointing at a path inside this repo, so a host install breaks if you delete that directory — repack
+with `npm run push` rather than hand-editing the host.
 
 To exercise plugin services against a booted Strapi on a TypeScript host, run the probe from the
 compiled `dist/` directory with the host's `.env` exported, and copy `package.json` into `dist`
@@ -140,14 +163,11 @@ A **real npm install nests correctly** — verified by packing the plugin and in
 project that already had `ai@5.0.26`: npm placed `ai@7.0.79` under the plugin and left `ai@5.0.26`
 hoisted for Strapi. Published installs are not affected.
 
-**A yalc-linked checkout is affected**, because yalc copies only `dist/` and npm dedupes to the
-host's copy instead of nesting. After `yalc add`/`yalc push`, run once:
-
-```
-cd <host>/node_modules/strapi-plugin-ai-bulk-translate && npm install --omit=dev --no-package-lock
-```
-
-The nested tree survives later `yalc push` calls, so this is a one-time step per host.
+**A yalc-linked checkout was affected**, because yalc copied only `dist/` and npm deduped to the
+host's copy instead of nesting — which needed a manual `npm install` inside the host's
+`node_modules` after every fresh link. `npm run push` installs a tarball, so the host now nests the
+same way a published install does and the repair step is gone. If you ever link a checkout directly
+again, expect the mismatch back.
 
 `GET /ai-bulk-translate/health` reports the resolved `ai` version and adapter versions, which is the
 fastest way to confirm they match. `testConnection` also detects the mismatch and returns an
@@ -179,24 +199,27 @@ leftover rows will not even be visible.
 
 This matters beyond probes: anything that deletes on the user's behalf must be explicit about scope.
 
-## Vite's dependency cache goes stale after `yalc push`
+## Vite's dependency cache goes stale after a reinstall
 
 Strapi's dev server pre-bundles dependencies with Vite into
-`<host>/node_modules/.strapi/vite/deps`, and the plugin is one of them. `yalc push` replaces the
-plugin's `dist`, but **nothing invalidates that cache** — so the admin keeps serving whatever was
+`<host>/node_modules/.strapi/vite/deps`, and the plugin is one of them. Reinstalling the plugin
+replaces its `dist`, but **nothing invalidates that cache** — so the admin keeps serving whatever was
 bundled the first time. Observed with a cache from 15:43 still being served against a `dist` rebuilt
 at 18:23: a whole settings section, present in source and in `dist`, was simply absent from the UI.
 
 It fails silently. There is no error and no warning; the feature just is not there, which reads like
 a bug in the feature rather than a stale bundle.
 
-After any `yalc push` that changes admin code:
+`npm run push` clears both caches for you. If you install by hand, after any push that changes
+admin code:
 
 ```
 rm -rf <host>/node_modules/.strapi/vite <host>/.strapi/client
 ```
 
-then restart the dev server and hard-refresh the browser. Server-only changes do not need it —
+Then restart the dev server and hard-refresh the browser — clearing the cache under a *running* host
+is not enough, because it regenerates before the server is restarted and the browser is served the
+old bundle. Server-only changes do not need any of this (`npm run push --server-only` skips it);
 Strapi reloads those itself.
 
 **Diagnosing it:** compare the mtime of `node_modules/.strapi/vite/deps/_metadata.json` against the

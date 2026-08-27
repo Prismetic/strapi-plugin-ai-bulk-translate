@@ -8,5 +8,5 @@ dist/
 .env.*
 !.env.example
 coverage/
-.yalc/
-yalc.lock
+.host-builds/
+*.tgz

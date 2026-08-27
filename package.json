@@ -38,6 +38,7 @@
     "postbuild": "node scripts/assert-esm-boundary.mjs",
     "watch": "strapi-plugin watch",
     "watch:link": "strapi-plugin watch:link",
+    "push": "node scripts/push-to-host.mjs",
     "verify": "strapi-plugin verify",
     "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p admin/tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
