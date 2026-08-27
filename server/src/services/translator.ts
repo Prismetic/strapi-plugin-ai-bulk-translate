@@ -61,6 +61,15 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
   /** Resolved lazily so the two services can reference each other without an import cycle. */
   const status = () => strapi.plugin('ai-bulk-translate').service('locale-status');
 
+  /**
+   * The admin-editable prompt and temperature, read per chunk rather than captured per run.
+   *
+   * Deliberately unlike the model, which `job-runner` resolves once so a run cannot split across
+   * two models mid-flight. These are cheap to read and carry no such hazard, and reading them late
+   * is what makes "takes effect on the next run" true without a restart.
+   */
+  const settings = () => strapi.plugin('ai-bulk-translate').service('settings-store');
+
   const config = <T>(key: string): T => strapi.config.get(`plugin::ai-bulk-translate.${key}`) as T;
 
   const localeName = async (code: string): Promise<string> => {
@@ -190,12 +199,13 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       targetLocale: string,
       resolved: ResolvedModel
     ): Promise<string[]> {
-      const [{ generateObject }, model] = await Promise.all([
+      const [{ generateObject }, model, { systemPrompt, temperature }] = await Promise.all([
         loadAiSdk(),
         strapi
           .plugin('ai-bulk-translate')
           .service('provider-registry')
           .getModel(resolved.provider, resolved.model.modelId),
+        settings().read(),
       ]);
 
       const shape = Object.fromEntries(
@@ -229,8 +239,8 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       const { object } = await generateObject({
         model,
         schema: z.object(shape),
-        system: config<string>('systemPrompt'),
-        temperature: config<number>('temperature'),
+        system: systemPrompt,
+        temperature,
         prompt: `Translate each of the following fields into ${target}.\n\n${body}`,
       });
 

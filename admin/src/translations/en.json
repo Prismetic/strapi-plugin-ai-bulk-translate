@@ -72,10 +72,22 @@
   "ai-bulk-translate.translate.done": "{translated} translated, {skipped} skipped, {failed} failed",
   "ai-bulk-translate.translate.failed": "Translation could not start",
   "ai-bulk-translate.translate.intro": "Translating from {source}. Results are saved as drafts for review — nothing is published.",
+  "ai-bulk-translate.translate.model": "Model",
+  "ai-bulk-translate.translate.model.defaultOption": "{label} (default)",
+  "ai-bulk-translate.translate.model.hint": "Recorded on the run, so the job history shows which model produced it.",
+  "ai-bulk-translate.translate.model.none": "No model is available. An administrator needs to register one under an enabled connection.",
   "ai-bulk-translate.translate.noTargets": "This project has no other locale to translate into. Add one in Internationalization settings.",
   "ai-bulk-translate.translate.progress": "Translating… {done} of {total} done",
   "ai-bulk-translate.translate.retry": "Retry {count, plural, one {# failed item} other {# failed items}}",
   "ai-bulk-translate.translate.targets": "Translate into",
   "ai-bulk-translate.translate.title": "AI translate",
-  "ai-bulk-translate.translate.view": "View {locale}"
+  "ai-bulk-translate.translate.view": "View {locale}",
+  "ai-bulk-translate.translation.error.title": "Could not save",
+  "ai-bulk-translate.translation.intro": "These steer every translation request. Changes apply to the next run; runs already in progress are unaffected.",
+  "ai-bulk-translate.translation.restoreDefaults": "Restore defaults",
+  "ai-bulk-translate.translation.section": "Translation",
+  "ai-bulk-translate.translation.systemPrompt": "System prompt",
+  "ai-bulk-translate.translation.systemPrompt.hint": "Sent as the system message on every request. Use it for house tone and rules the model should always follow.",
+  "ai-bulk-translate.translation.temperature": "Temperature",
+  "ai-bulk-translate.translation.temperature.hint": "Between {min} and {max}. Low values keep translations faithful; higher values make the model freer, which for translation usually means less accurate."
 }

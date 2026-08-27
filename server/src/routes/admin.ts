@@ -94,6 +94,23 @@ export default [
     config: requires(ACTIONS.settingsUpdate),
   },
 
+  // --- translation settings -------------------------------------------------------------------
+  // Reading is `settings.read` rather than also `translate`: the prompt and temperature are an
+  // administrator's concern, and an editor choosing a model for a run never sees them.
+  { method: 'GET', path: '/settings', handler: 'settings.find', config: requires(ACTIONS.settingsRead) },
+  {
+    method: 'PUT',
+    path: '/settings',
+    handler: 'settings.update',
+    config: requires(ACTIONS.settingsUpdate),
+  },
+  {
+    method: 'POST',
+    path: '/settings/restore',
+    handler: 'settings.restore',
+    config: requires(ACTIONS.settingsUpdate),
+  },
+
   // --- what the translate dialog needs to render ----------------------------------------------
   { method: 'GET', path: '/locales', handler: 'locale.find', config: requires(ACTIONS.translate) },
   {

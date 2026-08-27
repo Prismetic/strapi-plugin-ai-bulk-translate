@@ -14,12 +14,23 @@ export const DEFAULT_SYSTEM_PROMPT = [
   'Do not add commentary, explanation, or quotation marks that were not in the source.',
 ].join(' ');
 
+/** Low: translation should be faithful, not creative. */
+export const DEFAULT_TEMPERATURE = 0.2;
+
+/**
+ * Bounds on the admin-editable settings, enforced server-side in `validation/settings.ts`.
+ *
+ * `temperature` matches the range this plugin's `validator` already imposes on `config/plugins.ts`,
+ * so the two routes to the same value cannot disagree about what is acceptable.
+ */
+export const TEMPERATURE_RANGE = { min: 0, max: 2 } as const;
+export const SYSTEM_PROMPT_MAX_LENGTH = 4000;
+
 export default {
   default: () => ({
-    /** Steers tone and formatting rules. Editable from the settings page in a later slice. */
+    /** Steers tone and formatting rules. Editable from the settings page. */
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
-    /** Low by default: translation should be faithful, not creative. */
-    temperature: 0.2,
+    temperature: DEFAULT_TEMPERATURE,
     /**
      * Ceiling for one model request, in estimated tokens. Sized well below any provider's context
      * window: the point is predictable request sizes and useful chunk boundaries, not squeezing a

@@ -9,16 +9,18 @@ import {
   Typography,
 } from '@strapi/design-system';
 import { useQueryParams } from '@strapi/strapi/admin';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 
 import { useLocaleStatus } from '../../hooks/useLocaleStatus';
 import { useLocales } from '../../hooks/useLocales';
+import { useModels } from '../../hooks/useModels';
 import { useTranslationJob, type JobItem } from '../../hooks/useTranslationJob';
 import { getTranslation } from '../../utils/getTranslation';
 import { resolveOutcome, type BlockedReason } from '../../utils/outcome';
 import { ConflictList } from './ConflictList';
 import { LocalePreview } from './LocalePreview';
+import { ModelPicker, preselectedModelId } from './ModelPicker';
 
 interface TranslateModalProps {
   contentType: string;
@@ -40,8 +42,9 @@ const statusColor = (status: JobItem['status']) => {
 /**
  * The dialog every translation run passes through, on every surface.
  *
- * Four regions, in the order an editor thinks: which locales, what will happen to each entry, which
- * existing translations to replace, and then the outcome in words above the confirm button.
+ * Five regions, in the order an editor thinks: which locales, which model, what will happen to each
+ * entry, which existing translations to replace, and then the outcome in words above the confirm
+ * button.
  *
  * The arithmetic behind the last two lives in `resolveOutcome`, not here, so the sentence the footer
  * states and the condition the button is enabled by cannot disagree.
@@ -60,6 +63,19 @@ const TranslateModal = ({
 
   const [selected, setSelected] = useState<string[]>([]);
   const [authorised, setAuthorised] = useState<string[]>([]);
+
+  const { models } = useModels();
+  const [modelId, setModelId] = useState<number | null>(null);
+  const [modelTouched, setModelTouched] = useState(false);
+
+  // The list arrives after the first render, so the default is applied when it does — but only
+  // until the editor makes a choice of their own, which `modelTouched` protects from being
+  // overwritten by a later refetch.
+  useEffect(() => {
+    if (!modelTouched) {
+      setModelId(preselectedModelId(models));
+    }
+  }, [models, modelTouched]);
 
   // Nothing is fetched until a target is chosen — the preview has nothing to say before then, and
   // asking the server to read every selected document for no locales is pure waste.
@@ -101,6 +117,9 @@ const TranslateModal = ({
       targetLocales: selected,
       // Only approvals the editor could actually see and tick, so the job records nothing stale.
       overwriteDocumentIds: outcome.authorisedIds,
+      // null is a real choice here: it tells the server to resolve its own default rather than
+      // pinning the run to whatever the browser happened to have listed.
+      modelId,
       origin,
     });
   };
@@ -210,6 +229,15 @@ const TranslateModal = ({
                   ))}
                 </Flex>
               )}
+
+              <ModelPicker
+                models={models}
+                value={modelId}
+                onChange={(next) => {
+                  setModelTouched(true);
+                  setModelId(next);
+                }}
+              />
 
               {selected.length > 0 ? (
                 <Flex direction="column" alignItems="stretch" gap={2}>

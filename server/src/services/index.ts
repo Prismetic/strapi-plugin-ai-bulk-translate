@@ -5,6 +5,7 @@ import localeStatus from './locale-status';
 import modelStore from './model-store';
 import providerRegistry from './provider-registry';
 import providerStore from './provider-store';
+import settingsStore from './settings-store';
 import translator from './translator';
 
 export default {
@@ -15,5 +16,6 @@ export default {
   'job-store': jobStore,
   'locale-status': localeStatus,
   'job-runner': jobRunner,
+  'settings-store': settingsStore,
   translator,
 };

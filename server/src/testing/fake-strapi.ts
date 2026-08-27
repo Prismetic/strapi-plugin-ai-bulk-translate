@@ -100,16 +100,46 @@ export const fakeCrypto = {
   mask: (cipher: string | null) => (cipher ? '•••' : null),
 };
 
+/**
+ * An in-memory `strapi.store`, keyed the way the real one is — by `type`, `name` and `key`
+ * together, so a test cannot pass by reading a value another namespace wrote.
+ *
+ * `get` on a missing key resolves to `null`, which is what core_store returns and what the settings
+ * store's fallback-to-config path depends on.
+ */
+export const createFakeStore = (seed: Record<string, unknown> = {}) => {
+  const values = new Map<string, unknown>(Object.entries(seed));
+  const keyFor = ({ type, name, key }: { type?: string; name?: string; key?: string }) =>
+    `${type ?? ''}:${name ?? ''}:${key ?? ''}`;
+
+  const store = (defaults: { type?: string; name?: string; key?: string } = {}) => ({
+    async get(params: { key?: string } = {}) {
+      return values.get(keyFor({ ...defaults, ...params })) ?? null;
+    },
+    async set(params: { key?: string; value?: unknown } = {}) {
+      values.set(keyFor({ ...defaults, ...params }), params.value);
+    },
+    async delete(params: { key?: string } = {}) {
+      values.delete(keyFor({ ...defaults, ...params }));
+    },
+  });
+
+  return Object.assign(store, { values });
+};
+
 export interface FakeStrapiOptions {
   seed?: Record<string, FakeRow[]>;
   /** Plugin services, by the name callers resolve them under. */
   services?: Record<string, unknown>;
   config?: Record<string, unknown>;
+  /** Pre-existing `strapi.store` values, keyed `type:name:key`. */
+  store?: Record<string, unknown>;
 }
 
 export interface FakeStrapi {
   strapi: Core.Strapi;
   db: ReturnType<typeof createFakeDb>;
+  store: ReturnType<typeof createFakeStore>;
   /** Mutable, so a factory can register itself after construction. */
   services: Record<string, unknown>;
   logs: { level: string; message: string }[];
@@ -119,14 +149,17 @@ export const createFakeStrapi = ({
   seed = {},
   services = {},
   config = {},
+  store: storeSeed = {},
 }: FakeStrapiOptions = {}): FakeStrapi => {
   const db = createFakeDb(seed);
+  const store = createFakeStore(storeSeed);
   const registry: Record<string, unknown> = { crypto: fakeCrypto, ...services };
   const logs: { level: string; message: string }[] = [];
   const log = (level: string) => (message: string) => logs.push({ level, message });
 
   const strapi = {
     db,
+    store,
     log: { error: log('error'), warn: log('warn'), info: log('info'), debug: log('debug') },
     config: {
       // Mirrors Strapi's own signature: a missing key falls back to the caller's default rather
@@ -140,5 +173,5 @@ export const createFakeStrapi = ({
     plugin: () => ({ service: (name: string) => registry[name] }),
   } as unknown as Core.Strapi;
 
-  return { strapi, db, services: registry, logs };
+  return { strapi, db, store, services: registry, logs };
 };

@@ -5,6 +5,7 @@ import locale from './locale.controller';
 import localeStatus from './locale-status.controller';
 import model from './model.controller';
 import provider from './provider.controller';
+import settings from './settings.controller';
 
 export default {
   health,
@@ -14,4 +15,5 @@ export default {
   locale,
   'locale-status': localeStatus,
   'content-type': contentType,
+  settings,
 };
