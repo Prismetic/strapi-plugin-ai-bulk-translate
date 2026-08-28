@@ -33,7 +33,8 @@ const RESOLVED = {
 const createHarness = (
   translate: (request: TranslateRequest) => Promise<TranslateOutcome>,
   resolved: unknown = RESOLVED,
-  config: Record<string, unknown> = {}
+  config: Record<string, unknown> = {},
+  monitorConfig: unknown = null
 ) => {
   const seen: TranslateRequest[] = [];
   const { strapi, services, logs } = createFakeStrapi({ config });
@@ -50,10 +51,12 @@ const createHarness = (
     resolve: async () => resolved,
   };
 
+  services['monitor-config'] = { readOne: async () => monitorConfig };
+
   const jobs = jobStore({ strapi });
   services['job-store'] = jobs;
 
-  return { runner: jobRunner({ strapi }), jobs, seen, logs };
+  return { runner: jobRunner({ strapi }), jobs, seen, logs, services };
 };
 
 const twoItemJob = {
@@ -321,5 +324,110 @@ describe('job-runner', () => {
 
     const reset = await jobs.findOne(job.id);
     expect(reset?.items.every((i) => i.status === 'pending' && i.error === undefined)).toBe(true);
+  });
+});
+
+const MONITORED = {
+  contentType: 'api::page.page',
+  enabled: true,
+  locales: [
+    { code: 'ar', overwriteContent: true, overwriteManualEdits: false },
+    { code: 'zh-CN', overwriteContent: false, overwriteManualEdits: false },
+  ],
+};
+
+const monitoredJob = { ...twoItemJob, origin: 'monitor' as const };
+
+describe('job-runner and the monitoring overwrite policy', () => {
+  it('hands each locale its own policy', async () => {
+    const { runner, jobs, seen } = createHarness(
+      async () => ({ status: 'translated' }),
+      RESOLVED,
+      {},
+      MONITORED
+    );
+    const job = await jobs.create(monitoredJob);
+
+    await runner.run(job.id);
+
+    const ar = seen.find((request) => request.targetLocale === 'ar');
+    const zh = seen.find((request) => request.targetLocale === 'zh-CN');
+
+    expect(ar?.overwrite?.policy).toMatchObject({ overwriteContent: true });
+    expect(zh?.overwrite?.policy).toMatchObject({ overwriteContent: false });
+  });
+
+  /** A run a person started authorises per entry, and must not acquire a policy it never had. */
+  it('hands no policy to a run somebody started', async () => {
+    const { runner, jobs, seen } = createHarness(
+      async () => ({ status: 'translated' }),
+      RESOLVED,
+      {},
+      MONITORED
+    );
+    const job = await jobs.create(twoItemJob);
+
+    await runner.run(job.id);
+
+    expect(seen.every((request) => request.overwrite === undefined)).toBe(true);
+  });
+
+  it('tells a locale what the plugin last left it at', async () => {
+    const { runner, jobs, seen } = createHarness(
+      async () => ({ status: 'translated', targetUpdatedAt: '2026-08-28T12:00:00.000Z' }),
+      RESOLVED,
+      {},
+      MONITORED
+    );
+
+    // A first run records what it wrote...
+    const first = await jobs.create(monitoredJob);
+    await runner.run(first.id);
+
+    // ...and a second run is told about it.
+    const second = await jobs.create(monitoredJob);
+    await runner.run(second.id);
+
+    const later = seen.filter((request) => request.targetLocale === 'ar');
+    expect(later[0]?.overwrite?.lastWrittenAt).toBeNull();
+    expect(later[1]?.overwrite?.lastWrittenAt).toBe('2026-08-28T12:00:00.000Z');
+  });
+
+  /** Nothing written means nothing to compare against, and the policy treats that as somebody's work. */
+  it('reports no last write when the plugin has never written that locale', async () => {
+    const { runner, jobs, seen } = createHarness(
+      async () => ({ status: 'skipped', skippedReason: 'nothing to do' }),
+      RESOLVED,
+      {},
+      MONITORED
+    );
+    const job = await jobs.create(monitoredJob);
+
+    await runner.run(job.id);
+
+    expect(seen[0]?.overwrite?.lastWrittenAt).toBeNull();
+  });
+
+  /**
+   * Read once, not per item: saving the settings page while a run is going must not change what
+   * the rest of that run does.
+   */
+  it('reads the policy once for the whole run, not once per item', async () => {
+    let reads = 0;
+    const harness = createHarness(async () => ({ status: 'translated' }), RESOLVED, {}, MONITORED);
+
+    harness.services['monitor-config'] = {
+      readOne: async () => {
+        reads += 1;
+
+        return MONITORED;
+      },
+    };
+
+    const job = await harness.jobs.create(monitoredJob);
+    await harness.runner.run(job.id);
+
+    // Two items, one read.
+    expect(reads).toBe(1);
   });
 });

@@ -4,6 +4,7 @@ import { loadAiSdk } from './ai-sdk';
 import { chunkFields, joinParts, type FieldPart } from './chunker';
 import { extractFields, type ComponentSchemas, type TranslatableField } from './field-extractor';
 import { buildLocalePayload } from './locale-payload';
+import { decideOverwrite } from './overwrite-policy';
 import { reinject } from './path-codec';
 
 import type { Core } from '@strapi/strapi';
@@ -16,6 +17,17 @@ export interface TranslateRequest {
   targetLocale: string;
   /** Whether the user authorised overwriting existing content in the target locale. */
   allowOverwrite: boolean;
+  /**
+   * A monitored run's policy for this locale, decided here rather than by the caller because the
+   * answer depends on the target document, which this is about to read anyway.
+   *
+   * Absent for runs a person started: those authorise per entry, through `allowOverwrite`.
+   */
+  overwrite?: {
+    policy: { overwriteContent: boolean; overwriteManualEdits: boolean };
+    /** What the plugin left this locale's timestamp at, or null if it never wrote it. */
+    lastWrittenAt: string | Date | null;
+  };
   resolved: ResolvedModel;
 }
 
@@ -25,6 +37,11 @@ export interface TranslateOutcome {
   error?: string;
   /** The page path written in the target locale, where the content type has one. */
   targetPath?: string | null;
+  /**
+   * The target's timestamp after this write, recorded so a later monitored run can tell its own
+   * output from a human's edit.
+   */
+  targetUpdatedAt?: string | null;
 }
 
 /** Whatever the Content Manager's populate builder produces; passed straight back to `findOne`. */
@@ -345,10 +362,41 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         ...(populate ? { populate } : {}),
       } as never)) as Record<string, unknown> | null;
 
-      if (
-        !allowOverwrite &&
-        status().hasTranslatableContent(schema as never, existing, components)
-      ) {
+      const targetHasContent = status().hasTranslatableContent(
+        schema as never,
+        existing,
+        components
+      );
+
+      /**
+       * A monitored run decides by policy; a run a person started decides by what they ticked.
+       *
+       * The two skips are different answers and say so. "Already has content" is the
+       * configuration working as asked; "edited by hand" is the plugin declining to destroy
+       * somebody's work, and only one of those is fixed by changing a setting.
+       */
+      if (request.overwrite) {
+        const decision = decideOverwrite({
+          policy: request.overwrite.policy,
+          targetHasContent,
+          lastWrittenAt: request.overwrite.lastWrittenAt,
+          targetUpdatedAt: (existing?.updatedAt as string | undefined) ?? null,
+        });
+
+        if (decision === 'skip:has-content') {
+          return {
+            status: 'skipped',
+            skippedReason: `${targetLocale} already has content, and this locale is not set to overwrite it.`,
+          };
+        }
+
+        if (decision === 'skip:manual-edit') {
+          return {
+            status: 'skipped',
+            skippedReason: `${targetLocale} has been edited by hand since it was last translated, so it was left alone.`,
+          };
+        }
+      } else if (!allowOverwrite && targetHasContent) {
         return {
           status: 'skipped',
           skippedReason: `${targetLocale} already has content and was not authorised for overwrite.`,
@@ -375,19 +423,24 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       // added to the payload even though no model produced them.
       const uids = await regenerateUids(contentType, schema as never, clone, targetLocale);
 
-      await documents.update({
+      const written = (await documents.update({
         documentId,
         locale: targetLocale,
         // Draft, always. Publishing stays a human decision — the plugin never publishes.
         status: 'draft',
         data: { ...data, ...uids } as never,
-      });
+      })) as Record<string, unknown> | null;
 
       // The regenerated slug is the target locale's own path, not the source's — which is the
       // whole reason it is regenerated rather than copied.
-      const written = Object.values(uids).find((value) => typeof value === 'string' && value !== '');
+      const path = Object.values(uids).find((value) => typeof value === 'string' && value !== '');
 
-      return { status: 'translated', targetPath: (written as string) ?? null };
+      return {
+        status: 'translated',
+        targetPath: (path as string) ?? null,
+        // Read back from what was written, so a later run compares like with like.
+        targetUpdatedAt: (written?.updatedAt as string | undefined) ?? null,
+      };
     },
   };
 };

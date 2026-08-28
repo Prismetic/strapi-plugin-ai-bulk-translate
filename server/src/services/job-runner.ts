@@ -2,6 +2,7 @@ import { mapWithLimit } from './concurrency';
 
 import type { Core } from '@strapi/strapi';
 import type { JobItem, PublicJob } from './job-store';
+import type { MonitorLocale } from '../validation/monitor';
 import type { ResolvedModel } from './model-store';
 
 /**
@@ -29,14 +30,38 @@ const jobRunner = ({ strapi }: { strapi: Core.Strapi }) => {
   const translator = () => plugin().service('translator');
   const models = () => plugin().service('model-store');
 
-  const runItem = async (job: PublicJob, item: JobItem, resolved: ResolvedModel) => {
+  const runItem = async (
+    job: PublicJob,
+    item: JobItem,
+    resolved: ResolvedModel,
+    policies: MonitorLocale[]
+  ) => {
     try {
+      /**
+       * A monitored run carries a per-locale policy; a run a person started carries their per-entry
+       * authorisation. The policy is resolved per item because it is per locale, and the last-write
+       * record it needs is per entry and locale too.
+       */
+      const policy = policies.find((locale) => locale.code === item.locale);
+
       const outcome = await translator().translateDocument({
         contentType: job.contentType,
         documentId: item.documentId,
         sourceLocale: job.sourceLocale,
         targetLocale: item.locale,
         allowOverwrite: job.overwriteDocumentIds.includes(item.documentId),
+        ...(policy
+          ? {
+              overwrite: {
+                policy,
+                lastWrittenAt: await jobs().lastWriteFor(
+                  job.contentType,
+                  item.documentId,
+                  item.locale
+                ),
+              },
+            }
+          : {}),
         resolved,
       });
 
@@ -90,13 +115,24 @@ const jobRunner = ({ strapi }: { strapi: Core.Strapi }) => {
         return jobs().finish(jobId);
       }
 
+      /**
+       * Read once per run, not per item. A monitored run's behaviour must not change halfway
+       * through because an administrator saved the settings page while it was going.
+       */
+      const policies: MonitorLocale[] =
+        job.origin === 'monitor'
+          ? ((await plugin().service('monitor-config').readOne(job.contentType))?.locales ?? [])
+          : [];
+
       // Only pending items: on a retry the successful ones must not be repeated.
       const pending = job.items.filter((item) => item.status === 'pending');
       const limit = Number(strapi.config.get('plugin::ai-bulk-translate.maxConcurrency', 3));
 
       // mapWithLimit never rejects — a throwing item is recorded against that item by runItem, and
       // the rest of the run continues.
-      await mapWithLimit<JobItem, void>(pending, limit, (item) => runItem(job, item, resolved));
+      await mapWithLimit<JobItem, void>(pending, limit, (item) =>
+        runItem(job, item, resolved, policies)
+      );
 
       return jobs().finish(jobId);
     },

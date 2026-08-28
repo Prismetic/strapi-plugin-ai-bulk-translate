@@ -21,6 +21,11 @@ export interface JobItem {
   error?: string;
   /** The page path this locale was written to, where the content type has one. */
   targetPath?: string | null;
+  /**
+   * The target's timestamp as this run left it. A later monitored run compares the entry's
+   * current timestamp against this to tell its own output from a human's edit.
+   */
+  targetUpdatedAt?: string | null;
 }
 
 export interface JobRow {
@@ -101,6 +106,9 @@ export const progressOf = (items: JobItem[]): JobProgress => {
  * back a list missing the other's result — a lost outcome, invisible except as a job that never
  * reaches its total.
  */
+/** How many recent runs of a content type are searched for the plugin's last write to a locale. */
+const WRITE_LOOKBACK = 100;
+
 const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
   const query = () => strapi.db.query(JOB_UID);
   const writeQueues = new Map<number, Promise<unknown>>();
@@ -223,6 +231,40 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
       await query().deleteMany({ where: { id: { $in: expired } } });
 
       return expired.length;
+    },
+
+    /**
+     * What the plugin last left this locale's timestamp at, or null if it has no record of writing
+     * it.
+     *
+     * Searched over a bounded window of recent runs for the content type rather than the whole
+     * table, because this is asked once per item of every monitored run. Not finding a record is
+     * the conservative answer by design: the caller treats "we have no record of writing this" as
+     * somebody else's work and leaves it alone, so a lookback that falls short preserves content
+     * rather than overwriting it.
+     */
+    async lastWriteFor(contentType: string, documentId: string, locale: string) {
+      const rows = (await query().findMany({
+        where: { contentType },
+        orderBy: { id: 'desc' },
+        limit: WRITE_LOOKBACK,
+        select: ['id', 'items'],
+      })) as Pick<JobRow, 'id' | 'items'>[];
+
+      for (const row of rows) {
+        const item = (row.items ?? []).find(
+          (candidate) =>
+            candidate.documentId === documentId &&
+            candidate.locale === locale &&
+            candidate.targetUpdatedAt
+        );
+
+        if (item) {
+          return item.targetUpdatedAt ?? null;
+        }
+      }
+
+      return null;
     },
 
     async findOne(id: number): Promise<PublicJob | null> {
