@@ -1,7 +1,7 @@
 # Handoff — strapi-plugin-ai-bulk-translate
 
-*Written 28 August 2026 at commit `39eb259`. 457 tests, all four feedback commands green, tree
-clean, `main` level with `origin/main`, CI green on Node 20 and 22. A snapshot, not a living
+*Written 28 August 2026 at commit `39eb259`, revised the same day at `b911d3e`. 462 tests, all four
+feedback commands green, tree clean, `main` level with `origin/main`, CI green on Node 20 and 22. A snapshot, not a living
 document: where it disagrees with the repo, the repo is right.*
 
 **Supersedes** `docs/handoffs/2026-08-27-1.0-qa-pending.md`. Everything it lists as open is still
@@ -51,6 +51,12 @@ was actually released.
 **3. #31 — final QA for 1.1.** Needs a real provider and real publishes; monitoring spends money on a
 trigger rather than a button, so check the Jobs tab after each step rather than at the end.
 
+Two orderings inside that plan are easy to get wrong, and both waste a test rather than reporting a
+bug. **The fingerprint check runs before the overwrite policy**, so to exercise overwriting you must
+change the source text rather than republish unchanged — otherwise the run is skipped before the
+policy is consulted. And **monitoring configuration must be saved before it applies**, which now
+announces itself per row rather than only as a count.
+
 ---
 
 ## What 1.1 is
@@ -99,6 +105,13 @@ These cost real time. The earlier handoffs' corrections still stand; these are n
   it instead would be wrong as often: `zh-CN` is named "Chinese (cn)".
 - **`1rem` is `10px` in the admin.** The design system sets `html { font-size: 62.5% }`. Column
   widths borrowed from Strapi's own pages are in that scale.
+- **A section-wide Save needs per-row unsaved state.** The monitoring section briefly had one Save
+  for the whole section and a change count at the far end of it — which is not where anyone is
+  looking when they tick a box, so an unsaved tick looked exactly like a saved one. A locale was
+  configured to overwrite, the run skipped it, and the plugin was right: the configuration had never
+  been written. Each row now carries an **Unsaved** badge and a warning border, keyed to the same
+  comparison that enables Save so the two cannot disagree. The per-content-type Save buttons that
+  preceded it made this impossible; if the layout changes again, keep the row-level signal.
 - **The server entry point had no declaration file at all.** `TS2742` errors were exiting 0 while
   `vite-plugin-dts` emitted nothing, and `package.json` advertised types that were never in the
   tarball. Fixed by annotating `getModel` with a **type-only** import of `ai` — see the ESM boundary
