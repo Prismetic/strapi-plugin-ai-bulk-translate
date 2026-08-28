@@ -50,8 +50,6 @@ vi.mock('../../hooks/useMonitorConfig', () => ({
 
 const { MonitoringSection } = await import('./MonitoringSection');
 
-const box = (name: string | RegExp) => screen.queryByRole('checkbox', { name });
-
 const monitored = (over: Partial<MonitorConfig> = {}): MonitorConfig => ({
   contentType: 'api::article.article',
   enabled: true,
@@ -71,6 +69,16 @@ beforeEach(() => {
   save.mockClear();
 });
 
+const box = (name: string | RegExp) => screen.queryByRole('checkbox', { name });
+
+/** Locale rows live behind the expand, so most assertions have to open the type first. */
+const expand = (contentType: string) =>
+  fireEvent.click(screen.getByRole('button', { name: `Locales for ${contentType}` }));
+
+const translateBox = (locale = 'Arabic (ar)') => box(`Translate into ${locale}`);
+const contentBox = (locale = 'Arabic (ar)') => box(`Overwrite content in ${locale}`);
+const manualBox = (locale = 'Arabic (ar)') => box(`Overwrite manual edits in ${locale}`);
+
 describe('MonitoringSection', () => {
   it('lists localized content types, collection and single', () => {
     render(<MonitoringSection />);
@@ -83,46 +91,64 @@ describe('MonitoringSection', () => {
     render(<MonitoringSection />);
 
     expect(isChecked(box('article') as HTMLElement)).toBe(false);
-    expect(screen.queryByText('Translate into')).toBeNull();
+    expect(screen.getAllByText('Not monitored').length).toBe(2);
   });
 
-  it('offers target locales once a type is monitored', () => {
-    state.configs = { 'api::article.article': monitored({ locales: [] }) };
+  /** One line per content type until it has something to say. */
+  it('keeps a monitored type collapsed until it is opened', () => {
+    state.configs = { 'api::article.article': monitored() };
     render(<MonitoringSection />);
 
-    expect(screen.getByText('Translate into')).toBeTruthy();
-    expect(box(/Arabic/)).not.toBeNull();
+    expect(translateBox()).toBeNull();
+
+    expand('article');
+
+    expect(translateBox()).not.toBeNull();
+  });
+
+  it('names its columns once, above every row', () => {
+    render(<MonitoringSection />);
+
+    expect(screen.getByText('Content type')).toBeTruthy();
+    expect(screen.getByText('Translate')).toBeTruthy();
+    expect(screen.getByText('Overwrite content')).toBeTruthy();
+    expect(screen.getByText('Overwrite manual edits')).toBeTruthy();
   });
 
   /** The source of truth is never a target — the same rule the translation dialog enforces. */
   it('never offers the default locale as a target', () => {
     state.configs = { 'api::article.article': monitored({ locales: [] }) };
     render(<MonitoringSection />);
+    expand('article');
 
-    expect(box(/English/)).toBeNull();
+    expect(translateBox('English (en)')).toBeNull();
+    expect(translateBox()).not.toBeNull();
   });
 
-  it('shows the overwrite controls only for a locale that is being translated into', () => {
+  it('leaves the overwrite controls disabled for a locale not being translated into', () => {
     state.configs = { 'api::article.article': monitored({ locales: [] }) };
     render(<MonitoringSection />);
+    expand('article');
 
-    expect(box('Overwrite content')).toBeNull();
+    expect((contentBox() as HTMLElement).hasAttribute('disabled')).toBe(true);
   });
 
   it('offers the overwrite controls for a chosen locale, both off', () => {
     state.configs = { 'api::article.article': monitored() };
     render(<MonitoringSection />);
+    expand('article');
 
-    expect(isChecked(box('Overwrite content') as HTMLElement)).toBe(false);
-    expect(isChecked(box('Overwrite manual edits') as HTMLElement)).toBe(false);
+    expect(isChecked(contentBox() as HTMLElement)).toBe(false);
+    expect(isChecked(manualBox() as HTMLElement)).toBe(false);
   });
 
   /** The nesting rule: the stronger act cannot be reached without choosing the weaker one first. */
   it('disables overwriting manual edits until content is overwritten', () => {
     state.configs = { 'api::article.article': monitored() };
     render(<MonitoringSection />);
+    expand('article');
 
-    expect((box('Overwrite manual edits') as HTMLElement).hasAttribute('disabled')).toBe(true);
+    expect((manualBox() as HTMLElement).hasAttribute('disabled')).toBe(true);
   });
 
   it('enables it once content is overwritten', () => {
@@ -132,8 +158,9 @@ describe('MonitoringSection', () => {
       }),
     };
     render(<MonitoringSection />);
+    expand('article');
 
-    expect((box('Overwrite manual edits') as HTMLElement).hasAttribute('disabled')).toBe(false);
+    expect((manualBox() as HTMLElement).hasAttribute('disabled')).toBe(false);
   });
 
   it('clears the nested choice when its parent is turned off', () => {
@@ -143,33 +170,61 @@ describe('MonitoringSection', () => {
       }),
     };
     render(<MonitoringSection />);
+    expand('article');
 
-    fireEvent.click(box('Overwrite content') as HTMLElement);
+    fireEvent.click(contentBox() as HTMLElement);
 
-    expect(isChecked(box('Overwrite manual edits') as HTMLElement)).toBe(false);
-    expect((box('Overwrite manual edits') as HTMLElement).hasAttribute('disabled')).toBe(true);
+    expect(isChecked(manualBox() as HTMLElement)).toBe(false);
+    expect((manualBox() as HTMLElement).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('opens a type as soon as it is switched on, rather than leaving an empty row', () => {
+    render(<MonitoringSection />);
+    fireEvent.click(box('article') as HTMLElement);
+
+    expect(translateBox()).not.toBeNull();
   });
 
   it('offers no write control at all to a role that cannot manage settings', () => {
     state.canManage = false;
     state.configs = { 'api::article.article': monitored() };
     render(<MonitoringSection />);
+    expand('article');
 
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     expect((box('article') as HTMLElement).hasAttribute('disabled')).toBe(true);
-    expect((box('Overwrite content') as HTMLElement).hasAttribute('disabled')).toBe(true);
+    expect((translateBox() as HTMLElement).hasAttribute('disabled')).toBe(true);
   });
 
-  it('keeps Save disabled until something changes', () => {
+  /** One button for the section, not one per content type. */
+  it('keeps a single Save, disabled until something changes', () => {
     state.configs = { 'api::article.article': monitored() };
     render(<MonitoringSection />);
 
-    const saveButtons = screen.getAllByRole('button', { name: 'Save' });
+    const buttons = screen.getAllByRole('button', { name: 'Save' });
 
-    expect(saveButtons[0].hasAttribute('disabled')).toBe(true);
+    expect(buttons.length).toBe(1);
+    expect(buttons[0].hasAttribute('disabled')).toBe(true);
   });
 
-  it('says so when nothing can be monitored', () => {
+  it('says how much is unsaved once something changes', () => {
+    render(<MonitoringSection />);
+    fireEvent.click(box('article') as HTMLElement);
+
+    expect(screen.getByText('1 content type changed')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('saves every content type that changed', async () => {
+    render(<MonitoringSection />);
+    fireEvent.click(box('article') as HTMLElement);
+    fireEvent.click(box('homepage') as HTMLElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+  });
+
+  it('says when nothing can be monitored', () => {
     state.translatable = [];
     render(<MonitoringSection />);
 
