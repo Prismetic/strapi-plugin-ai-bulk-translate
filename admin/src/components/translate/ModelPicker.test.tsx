@@ -41,8 +41,9 @@ describe('preselectedModelId', () => {
   it('picks nothing when the default is disabled, rather than silently choosing another', () => {
     // Falling through to another model would run on something the operator never chose, at a cost
     // they did not expect. The server resolves its own default instead.
-    expect(preselectedModelId([model({ id: 1 }), model({ id: 2, isDefault: true, enabled: false })]))
-      .toBeNull();
+    expect(
+      preselectedModelId([model({ id: 1 }), model({ id: 2, isDefault: true, enabled: false })])
+    ).toBeNull();
   });
 
   it('picks nothing when there is no default at all', () => {
