@@ -3,7 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PLUGIN_ID } from '../pluginId';
 
-export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+import type { JobStatus as Status } from '../utils/jobFilters';
+
+export type { JobStatus } from '../utils/jobFilters';
+export { NEEDS_ATTENTION } from '../utils/jobFilters';
+
 export type JobOrigin = 'document' | 'bulk' | 'monitor';
 
 /** A run as the list shows it. Per-item detail is fetched separately when a run is opened. */
@@ -13,7 +17,7 @@ export interface JobSummary {
   contentType: string;
   sourceLocale: string;
   targetLocales: string[];
-  status: JobStatus;
+  status: Status;
   documentCount: number;
   modelId: number | null;
   createdById: number | null;
@@ -38,10 +42,7 @@ export interface JobsMeta {
 }
 
 /** Runs in one of these are still moving, so the list has a reason to keep asking. */
-const ACTIVE: JobStatus[] = ['queued', 'processing'];
-
-/** What the tab opens on: everything a person might act on. Mirrors the server default. */
-export const NEEDS_ATTENTION: JobStatus[] = ['queued', 'processing', 'failed'];
+const ACTIVE: Status[] = ['queued', 'processing'];
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -55,7 +56,7 @@ export const isActive = (jobs: Pick<JobSummary, 'status'>[]): boolean =>
  * server anything, and one watching a bulk run should not need a manual refresh. The dialog's own
  * progress view already works this way, and this follows it rather than inventing a second rhythm.
  */
-export const useJobs = ({ statuses, page }: { statuses: JobStatus[]; page: number }) => {
+export const useJobs = ({ statuses, page }: { statuses: Status[]; page: number }) => {
   const { get } = useFetchClient();
 
   const [jobs, setJobs] = useState<JobSummary[]>([]);

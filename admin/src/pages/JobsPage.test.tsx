@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '../testing/render';
+import { fireEvent, render, screen } from '../testing/render';
 
 import type { JobSummary } from '../hooks/useJobs';
 
@@ -17,10 +17,17 @@ const state: {
  * '@strapi/strapi/admin', whose lodash imports Node's ESM resolver refuses — the mispackaging
  * CONVENTIONS.md records. Mock the boundary; do not reach through it.
  */
+/** Records what the page asked for, so the filter's effect is observable rather than assumed. */
+const asked: { statuses: string[]; page: number }[] = [];
+
 vi.mock('../hooks/useJobs', () => ({
   NEEDS_ATTENTION: ['queued', 'processing', 'failed'],
   isActive: () => false,
-  useJobs: () => ({ ...state, refresh: vi.fn() }),
+  useJobs: (args: { statuses: string[]; page: number }) => {
+    asked.push(args);
+
+    return { ...state, refresh: vi.fn() };
+  },
 }));
 
 const { JobsPage } = await import('./JobsPage');
@@ -48,7 +55,10 @@ beforeEach(() => {
   state.meta = { page: 1, pageSize: 20, total: 1, pageCount: 1 };
   state.isLoading = false;
   state.error = null;
+  asked.length = 0;
 });
+
+const lastAsk = () => asked[asked.length - 1];
 
 describe('JobsPage', () => {
   it('lists a run with its status, entries and progress', () => {
@@ -137,5 +147,49 @@ describe('JobsPage', () => {
     expect(screen.getByText('Page 1 of 3')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Previous' }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(false);
+  });
+});
+
+describe('JobsPage filter', () => {
+  it('asks only for what needs attention by default', () => {
+    render(<JobsPage />);
+
+    expect(lastAsk().statuses).toEqual(['queued', 'processing', 'failed']);
+  });
+
+  it('describes the default view as hiding completed runs', () => {
+    render(<JobsPage />);
+
+    expect(screen.getByText(/Completed runs are hidden/)).toBeTruthy();
+  });
+
+  it('widens the request when completed runs are asked for', () => {
+    render(<JobsPage />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show completed' }));
+
+    expect(lastAsk().statuses).toContain('completed');
+    expect(lastAsk().statuses).toContain('failed');
+  });
+
+  /** Page four of a narrower list is a different slice of a different list, or nothing at all. */
+  it('returns to the first page when the filter widens', () => {
+    state.meta = { page: 2, pageSize: 20, total: 45, pageCount: 3 };
+    render(<JobsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(lastAsk().page).toBe(2);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show completed' }));
+
+    expect(lastAsk().page).toBe(1);
+  });
+
+  it('says something different about an empty list once nothing is filtered out', () => {
+    state.jobs = [];
+    render(<JobsPage />);
+    expect(screen.getByText(/Nothing needs attention/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show completed' }));
+
+    expect(screen.getByText(/No runs yet/)).toBeTruthy();
   });
 });
