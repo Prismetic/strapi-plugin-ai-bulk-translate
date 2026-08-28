@@ -217,11 +217,10 @@ describe('MonitoringSection', () => {
     expect(buttons[0].hasAttribute('disabled')).toBe(true);
   });
 
-  it('says how much is unsaved once something changes', () => {
+  it('enables Save once something changes', () => {
     render(<MonitoringSection />);
     fireEvent.click(box('article') as HTMLElement);
 
-    expect(screen.getByText('1 content type changed')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save' }).hasAttribute('disabled')).toBe(false);
   });
 
@@ -232,6 +231,51 @@ describe('MonitoringSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+  });
+
+  /**
+   * The defect this exists for: a ticked-but-unsaved box looked exactly like a saved one, so a
+   * monitoring policy was believed to be in force when it had never been written.
+   */
+  it('marks nothing as unsaved when nothing has changed', () => {
+    state.configs = { 'api::article.article': monitored() };
+    render(<MonitoringSection />);
+
+    expect(screen.queryByText('Unsaved')).toBeNull();
+  });
+
+  it('marks the row that changed, where the change was made', () => {
+    render(<MonitoringSection />);
+    fireEvent.click(box('article') as HTMLElement);
+
+    expect(screen.getByText('Unsaved')).toBeTruthy();
+  });
+
+  it('marks only the rows that changed', () => {
+    render(<MonitoringSection />);
+    fireEvent.click(box('article') as HTMLElement);
+
+    expect(screen.getAllByText('Unsaved')).toHaveLength(1);
+
+    fireEvent.click(box('homepage') as HTMLElement);
+
+    expect(screen.getAllByText('Unsaved')).toHaveLength(2);
+  });
+
+  it('marks a row changed by a locale option, not just by being switched on', () => {
+    state.configs = { 'api::article.article': monitored() };
+    render(<MonitoringSection />);
+    expand('article');
+    fireEvent.click(contentBox() as HTMLElement);
+
+    expect(screen.getByText('Unsaved')).toBeTruthy();
+  });
+
+  it('says how much is unsaved in words that name the state', () => {
+    render(<MonitoringSection />);
+    fireEvent.click(box('article') as HTMLElement);
+
+    expect(screen.getByText('1 content type has unsaved changes')).toBeTruthy();
   });
 
   it('says when nothing can be monitored', () => {

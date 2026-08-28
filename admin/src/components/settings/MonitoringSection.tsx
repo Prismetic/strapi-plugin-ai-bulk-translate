@@ -1,4 +1,4 @@
-import { Box, Button, Checkbox, Flex, Typography } from '@strapi/design-system';
+import { Badge, Box, Button, Checkbox, Flex, Typography } from '@strapi/design-system';
 import { ChevronDown, ChevronRight } from '@strapi/icons';
 import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
@@ -145,13 +145,21 @@ const MonitoringSection = () => {
         {(translatable ?? []).map((contentType) => {
           const draft = draftFor(contentType.uid);
           const isOpen = expanded === contentType.uid;
+          const isDirty = changed.includes(contentType.uid);
 
           return (
             <Box
               key={contentType.uid}
               background="neutral0"
               hasRadius
-              borderColor="neutral150"
+              /**
+               * A changed row says so where the change was made.
+               *
+               * A count at the far end of the section is not where anyone is looking when they tick
+               * a box, and an unsaved tick otherwise looks exactly like a saved one — which is how a
+               * configuration gets believed rather than saved.
+               */
+              borderColor={isDirty ? 'warning500' : 'neutral150'}
               borderWidth="1px"
               borderStyle="solid"
               marginBottom={1}
@@ -170,6 +178,15 @@ const MonitoringSection = () => {
                   >
                     <Typography fontWeight="bold">{shortType(contentType.uid)}</Typography>
                   </Checkbox>
+
+                  {isDirty ? (
+                    <Badge variant="warning">
+                      {formatMessage({
+                        id: getTranslation('monitoring.rowUnsaved'),
+                        defaultMessage: 'Unsaved',
+                      })}
+                    </Badge>
+                  ) : null}
 
                   {draft.enabled ? (
                     <Box
@@ -307,7 +324,7 @@ const MonitoringSection = () => {
                 {
                   id: getTranslation('monitoring.unsaved'),
                   defaultMessage:
-                    '{count, plural, one {# content type} other {# content types}} changed',
+                    '{count, plural, one {# content type has} other {# content types have}} unsaved changes',
                 },
                 { count: changed.length }
               )}
