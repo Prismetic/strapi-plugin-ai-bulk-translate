@@ -1,6 +1,6 @@
 # Handoff — strapi-plugin-ai-bulk-translate
 
-*Written 28 August 2026 at commit `39eb259`, revised the same day at `b911d3e`. 462 tests, all four
+*Written 28 August 2026 at commit `39eb259`, revised the same day at `76daab4`. 477 tests, all four
 feedback commands green, tree clean, `main` level with `origin/main`, CI green on Node 20 and 22. A snapshot, not a living
 document: where it disagrees with the repo, the repo is right.*
 
@@ -68,6 +68,18 @@ monitored — defaulting to what needs attention (queued, processing, failed), w
 **Completed** and **Skipped** checkboxes. Rows name the entries they touched by a title frozen at run
 time, show how long a run took, and expand to per-entry, per-locale outcomes with reasons. Failed
 runs retry in place. There is no Cancel, deliberately.
+
+Two rules about a run's status are easy to mistake for bugs, and both were reported as such before
+they were settled:
+
+- **A monitored run that changed nothing is `skipped`, not `completed`** — whether it was the
+  fingerprint check or the overwrite policy that declined. One meaning per bucket: skipped is
+  "nothing changed", completed is "something was written". **A run somebody started stays
+  `completed`** in the same situation, because they pressed a button and should find the result
+  where they expect rather than behind a filter that is off by default. The asymmetry is deliberate.
+- **The badge colour answers a different question from the label.** A run is *called* completed as
+  soon as anything translated, so the colour says whether it was clean: green only when every item
+  translated, yellow if anything was skipped, red if anything failed.
 
 **Monitoring.** Publishing the default locale of a monitored entry translates that entry
 automatically. Configured per content type and per locale, with a two-level opt-in — *Overwrite
