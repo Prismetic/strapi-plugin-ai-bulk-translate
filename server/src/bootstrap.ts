@@ -1,4 +1,5 @@
 import { RBAC_ACTIONS } from './permissions/actions';
+import { publishMonitor } from './services/monitor-middleware';
 
 import type { Core } from '@strapi/strapi';
 
@@ -16,6 +17,15 @@ const bootstrap = async ({ strapi }: { strapi: Core.Strapi }) => {
         'Set ENCRYPTION_KEY and expose it through config/admin as secrets.encryptionKey.'
     );
   }
+
+  /**
+   * Runs on every document-service call in the host; see the module for why it is shaped as it is.
+   *
+   * Cast because Strapi types a middleware's return as the union of every document-service
+   * result. This one returns whatever the next middleware did, untouched, which the union cannot
+   * express — passing the value through is the point.
+   */
+  strapi.documents.use(publishMonitor(strapi) as Parameters<typeof strapi.documents.use>[0]);
 
   /**
    * Keeps job history bounded.

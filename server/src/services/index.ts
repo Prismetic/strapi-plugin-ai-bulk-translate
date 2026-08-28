@@ -4,6 +4,7 @@ import jobStore from './job-store';
 import localeStatus from './locale-status';
 import modelStore from './model-store';
 import monitorConfig from './monitor-config';
+import monitorRunner from './monitor-runner';
 import providerRegistry from './provider-registry';
 import providerStore from './provider-store';
 import settingsStore from './settings-store';
@@ -15,6 +16,7 @@ export default {
   'provider-registry': providerRegistry,
   'model-store': modelStore,
   'monitor-config': monitorConfig,
+  'monitor-runner': monitorRunner,
   'job-store': jobStore,
   'locale-status': localeStatus,
   'job-runner': jobRunner,
