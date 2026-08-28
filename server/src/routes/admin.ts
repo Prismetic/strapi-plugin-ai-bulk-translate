@@ -128,6 +128,7 @@ export default [
 
   // --- runs -----------------------------------------------------------------------------------
   { method: 'POST', path: '/jobs', handler: 'job.create', config: requires(ACTIONS.translate) },
+  { method: 'GET', path: '/jobs', handler: 'job.find', config: requires(ACTIONS.translate) },
   { method: 'GET', path: '/jobs/:id', handler: 'job.findOne', config: requires(ACTIONS.translate) },
   {
     method: 'POST',

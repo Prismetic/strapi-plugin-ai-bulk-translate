@@ -1,4 +1,5 @@
 import { jobCreateSchema } from '../validation/job';
+import { jobListQuerySchema } from '../validation/job-list';
 import { formatZodError } from '../validation/provider';
 import { defaultLocaleCode } from '../services/default-locale';
 import { rejectTargetLocales } from '../validation/target-locales';
@@ -137,6 +138,53 @@ const jobController = {
 
     ctx.status = 201;
     ctx.body = { data: job };
+  },
+
+  /**
+   * A page of runs for the Jobs tab.
+   *
+   * Returns **everyone's** runs, not the caller's. Monitored runs are attributed to whoever
+   * published the entry, so a per-user view would scatter automatic activity across accounts and
+   * hide it from the administrator who configured it — the one person who most needs to see it.
+   *
+   * Creator names are resolved for the page in one query rather than per row. An absent creator is
+   * a real state, not an error: a run can outlive the account that started it.
+   */
+  async find(ctx: Context) {
+    const parsed = jobListQuerySchema.safeParse(ctx.query);
+
+    if (!parsed.success) {
+      return badRequest(ctx, formatZodError(parsed.error));
+    }
+
+    const { status, page, pageSize } = parsed.data;
+    const { data, total } = await plugin()
+      .service('job-store')
+      .findMany({ statuses: status, page, pageSize });
+
+    const creatorIds = [...new Set(data.map((job) => job.createdById).filter(Boolean))];
+
+    const creators = creatorIds.length
+      ? ((await strapi.db.query('admin::user').findMany({
+          where: { id: { $in: creatorIds } },
+          select: ['id', 'firstname', 'lastname', 'email'],
+        })) as { id: number; firstname?: string; lastname?: string; email?: string }[])
+      : [];
+
+    const nameOf = new Map(
+      creators.map((user) => [
+        user.id,
+        [user.firstname, user.lastname].filter(Boolean).join(' ').trim() || user.email || null,
+      ])
+    );
+
+    ctx.body = {
+      data: data.map((job) => ({
+        ...job,
+        createdByName: job.createdById === null ? null : (nameOf.get(job.createdById) ?? null),
+      })),
+      meta: { page, pageSize, total, pageCount: Math.max(1, Math.ceil(total / pageSize)) },
+    };
   },
 
   /**

@@ -29,6 +29,8 @@ export interface JobRow {
   status: JobStatus;
   modelId: number | null;
   createdById: number | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 
 export interface JobInput {
@@ -52,6 +54,22 @@ export interface JobProgress {
 
 export interface PublicJob extends JobRow {
   progress: JobProgress;
+}
+
+/**
+ * A run as the list shows it: everything except the per-item detail.
+ *
+ * `items` is the bulk of a row — one entry per document and locale — and a page of twenty runs
+ * would carry thousands of them to render a progress count that is already summarised. The
+ * drill-down fetches the full run by id when someone actually opens one.
+ */
+export type JobSummary = Omit<PublicJob, 'items' | 'documentIds' | 'overwriteDocumentIds'> & {
+  documentCount: number;
+};
+
+export interface JobPage {
+  data: JobSummary[];
+  total: number;
 }
 
 export const progressOf = (items: JobItem[]): JobProgress => {
@@ -94,6 +112,16 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
 
   const toPublic = (row: JobRow): PublicJob => ({ ...row, progress: progressOf(row.items ?? []) });
 
+  const toSummary = (row: JobRow): JobSummary => {
+    const { items, documentIds, overwriteDocumentIds, ...rest } = row;
+
+    return {
+      ...rest,
+      progress: progressOf(items ?? []),
+      documentCount: (documentIds ?? []).length,
+    };
+  };
+
   return {
     progressOf,
 
@@ -121,6 +149,40 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
       })) as JobRow;
 
       return toPublic(row);
+    },
+
+    /**
+     * A page of runs, newest first, filtered by status.
+     *
+     * Paged in the database rather than in the browser: history is unbounded until the retention
+     * prune exists, and even after it a busy site's month of runs is not something to send in full
+     * so the admin can hide most of it.
+     *
+     * The total is counted with the same filter, so the pager describes the filtered list rather
+     * than the table.
+     */
+    async findMany({
+      statuses,
+      page,
+      pageSize,
+    }: {
+      statuses: JobStatus[];
+      page: number;
+      pageSize: number;
+    }): Promise<JobPage> {
+      const where = { status: { $in: statuses } };
+
+      const [rows, total] = await Promise.all([
+        query().findMany({
+          where,
+          orderBy: { id: 'desc' },
+          limit: pageSize,
+          offset: (page - 1) * pageSize,
+        }) as Promise<JobRow[]>,
+        query().count({ where }) as Promise<number>,
+      ]);
+
+      return { data: rows.map(toSummary), total };
     },
 
     async findOne(id: number): Promise<PublicJob | null> {
