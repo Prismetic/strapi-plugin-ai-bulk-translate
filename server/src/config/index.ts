@@ -41,10 +41,29 @@ export default {
     maxDocumentsPerRun: 100,
     /** Concurrent model requests per run. Raised to its real purpose by the bulk slice. */
     maxConcurrency: 3,
+    /**
+     * How long finished runs are kept, in days.
+     *
+     * History is worth having and is not worth keeping forever: the Jobs tab answers "what
+     * happened", which is a question about recent work. Raise it where an audit trail matters.
+     * Runs still queued or processing are never pruned, whatever this says.
+     */
+    jobRetentionDays: 30,
   }),
 
   validator(config: Record<string, unknown>) {
-    const { temperature, maxDocumentsPerRun, maxConcurrency } = config;
+    const { temperature, maxDocumentsPerRun, maxConcurrency, jobRetentionDays } = config;
+
+    if (
+      jobRetentionDays !== undefined &&
+      (typeof jobRetentionDays !== 'number' ||
+        !Number.isInteger(jobRetentionDays) ||
+        jobRetentionDays < 1)
+    ) {
+      throw new Error(
+        'ai-bulk-translate: jobRetentionDays must be a whole number of days, at least 1.'
+      );
+    }
 
     if (typeof temperature === 'number' && (temperature < 0 || temperature > 2)) {
       throw new Error('ai-bulk-translate: temperature must be between 0 and 2.');

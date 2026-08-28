@@ -234,6 +234,7 @@ export default () => ({
       maxTokensPerRequest: 3000,
       maxDocumentsPerRun: 100,
       maxConcurrency: 3,
+      jobRetentionDays: 30,
     },
   },
 });
@@ -246,6 +247,7 @@ export default () => ({
 | `maxTokensPerRequest` | `3000` | Ceiling for one model request, in estimated tokens. Long fields are split across requests and rejoined. Minimum 100. |
 | `maxDocumentsPerRun` | `100` | Ceiling on entries per run, so a mis-click cannot trigger an enormous bill. Enforced server-side. |
 | `maxConcurrency` | `3` | Concurrent model requests within a run. Raise it if your provider's rate limits allow. |
+| `jobRetentionDays` | `30` | How long finished runs are kept before a nightly task discards them. Runs still queued or processing are never removed, whatever this is set to. |
 
 The settings page takes precedence over `systemPrompt` and `temperature` once an administrator saves
 them; *Restore defaults* clears that override and hands control back to this file.

@@ -1,5 +1,6 @@
 import { JOB_UID } from '../models';
 
+import { cutoffFrom, isPrunable } from './job-retention';
 import { timestampsFor } from './job-timing';
 
 import type { JobDocument } from './entry-identity';
@@ -196,6 +197,32 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
       ]);
 
       return { data: rows.map(toSummary), total };
+    },
+
+    /**
+     * Discards finished runs older than the retention window, and reports how many.
+     *
+     * Candidates are narrowed in the database by creation time — which is always at or before the
+     * end time — and then decided precisely in JavaScript, so the rule that a run's age is measured
+     * from when it *ended* lives in one tested place rather than being half-expressed as a query.
+     */
+    async prune(now: Date, retentionDays: number): Promise<number> {
+      const cutoff = cutoffFrom(now, retentionDays);
+
+      const candidates = (await query().findMany({
+        where: { createdAt: { $lt: cutoff } },
+        select: ['id', 'status', 'createdAt', 'finishedAt'],
+      })) as Pick<JobRow, 'id' | 'status' | 'createdAt' | 'finishedAt'>[];
+
+      const expired = candidates.filter((job) => isPrunable(job, cutoff)).map((job) => job.id);
+
+      if (expired.length === 0) {
+        return 0;
+      }
+
+      await query().deleteMany({ where: { id: { $in: expired } } });
+
+      return expired.length;
     },
 
     async findOne(id: number): Promise<PublicJob | null> {

@@ -16,6 +16,36 @@ const bootstrap = async ({ strapi }: { strapi: Core.Strapi }) => {
         'Set ENCRYPTION_KEY and expose it through config/admin as secrets.encryptionKey.'
     );
   }
+
+  /**
+   * Keeps job history bounded.
+   *
+   * Nightly rather than on a timer from boot, so a host restarted often does not prune repeatedly
+   * — and one that runs for months still prunes. The window is read inside the task rather than
+   * captured here, so a host's config change takes effect without a rebuild.
+   */
+  strapi.cron.add({
+    'ai-bulk-translate:prune-jobs': {
+      async task({ strapi: instance }) {
+        const days = instance.config.get(
+          'plugin::ai-bulk-translate.jobRetentionDays',
+          30
+        ) as number;
+
+        const removed = await instance
+          .plugin('ai-bulk-translate')
+          .service('job-store')
+          .prune(new Date(), days);
+
+        if (removed > 0) {
+          instance.log.info(
+            `[ai-bulk-translate] Pruned ${removed} translation run(s) older than ${days} days.`
+          );
+        }
+      },
+      options: { rule: '0 3 * * *' },
+    },
+  });
 };
 
 export default bootstrap;
