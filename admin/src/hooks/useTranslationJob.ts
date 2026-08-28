@@ -13,6 +13,8 @@ export interface JobItem {
   status: ItemStatus;
   skippedReason?: string;
   error?: string;
+  /** The page path this locale was written to, where the content type has one. */
+  targetPath?: string | null;
 }
 
 export interface Job {

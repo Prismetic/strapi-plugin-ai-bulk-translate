@@ -30,6 +30,15 @@ vi.mock('../hooks/useJobs', () => ({
   },
 }));
 
+/**
+ * The drill-down is a unit of its own with its own tests, and importing it for real pulls
+ * '@strapi/strapi/admin' in through its hook — the mispackaged lodash imports Node's ESM resolver
+ * refuses. What this file cares about is whether a row opens one, not what it then renders.
+ */
+vi.mock('../components/jobs/JobDetail', () => ({
+  JobDetail: ({ id }: { id: number }) => <div data-testid={`detail-${id}`} />,
+}));
+
 const { JobsPage } = await import('./JobsPage');
 
 const job = (over: Partial<JobSummary> = {}): JobSummary =>
@@ -247,5 +256,50 @@ describe('JobsPage entry names and timing', () => {
     render(<JobsPage />);
 
     expect(screen.getByText('—')).toBeTruthy();
+  });
+});
+
+describe('JobsPage drill-down', () => {
+  it('shows no detail until a run is opened', () => {
+    render(<JobsPage />);
+
+    expect(screen.queryByTestId('detail-1')).toBeNull();
+  });
+
+  it('opens a run when its toggle is pressed', () => {
+    render(<JobsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show details' }));
+
+    expect(screen.getByTestId('detail-1')).toBeTruthy();
+  });
+
+  it('closes it again', () => {
+    render(<JobsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show details' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Hide details' }));
+
+    expect(screen.queryByTestId('detail-1')).toBeNull();
+  });
+
+  /** Two panels open at once is a table that has stopped being a table. */
+  it('opens one run at a time', () => {
+    state.jobs = [job({ id: 1 }), job({ id: 2 })];
+    render(<JobsPage />);
+    const [first, second] = screen.getAllByRole('button', { name: 'Show details' });
+
+    fireEvent.click(first);
+    fireEvent.click(second);
+
+    expect(screen.queryByTestId('detail-1')).toBeNull();
+    expect(screen.getByTestId('detail-2')).toBeTruthy();
+  });
+
+  /** The open run may not exist in the widened list; a stranded panel would describe nothing. */
+  it('closes the open run when the filter changes', () => {
+    render(<JobsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show details' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show completed' }));
+
+    expect(screen.queryByTestId('detail-1')).toBeNull();
   });
 });

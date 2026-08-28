@@ -1,9 +1,12 @@
+import { ChevronDown, ChevronUp } from '@strapi/icons';
+
 import {
   Badge,
   Box,
   Button,
   Checkbox,
   Flex,
+  IconButton,
   Loader,
   Table,
   Tbody,
@@ -12,10 +15,12 @@ import {
   Thead,
   Tr,
   Typography,
+  VisuallyHidden,
 } from '@strapi/design-system';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
 
+import { JobDetail } from '../components/jobs/JobDetail';
 import { useJobs, type JobStatus, type JobSummary } from '../hooks/useJobs';
 import { getTranslation } from '../utils/getTranslation';
 import { durationBetween, namedEntries } from '../utils/jobEntries';
@@ -31,7 +36,7 @@ const STATUS_VARIANT: Record<JobStatus, 'secondary' | 'alternative' | 'success' 
 /** `api::article.article` says nothing an editor needs; `article` does. */
 const shortType = (uid: string): string => uid.split('.').pop() ?? uid;
 
-const COLUMNS = 9;
+const COLUMNS = 10;
 
 /**
  * What a run was about, by name.
@@ -74,7 +79,11 @@ const JobsPage = () => {
   const { formatMessage } = useIntl();
   const [page, setPage] = useState(1);
   const [completed, setCompleted] = useState(false);
-  const { jobs, meta, isLoading, error } = useJobs({ statuses: statusesFor({ completed }), page });
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const { jobs, meta, isLoading, error, refresh } = useJobs({
+    statuses: statusesFor({ completed }),
+    page,
+  });
 
   /**
    * Widening the filter changes what page one contains, so staying on page four would show a
@@ -83,6 +92,8 @@ const JobsPage = () => {
   const setFilter = (next: boolean) => {
     setCompleted(next);
     setPage(1);
+    // The open run may not be in the new list at all; leaving it open would strand a detail panel.
+    setExpanded(null);
   };
 
   const originLabel = (origin: JobSummary['origin']) => {
@@ -162,9 +173,17 @@ const JobsPage = () => {
             </Typography>
           </Box>
         ) : (
-          <Table colCount={COLUMNS} rowCount={jobs.length + 1}>
+          <Table colCount={COLUMNS} rowCount={jobs.length + 1 + (expanded === null ? 0 : 1)}>
             <Thead>
               <Tr>
+                <Th>
+                  <VisuallyHidden>
+                    {formatMessage({
+                      id: getTranslation('jobs.column.expand'),
+                      defaultMessage: 'Show details',
+                    })}
+                  </VisuallyHidden>
+                </Th>
                 <Th>
                   <Typography variant="sigma">
                     {formatMessage({
@@ -240,8 +259,27 @@ const JobsPage = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {jobs.map((job) => (
+              {jobs.flatMap((job) => [
                 <Tr key={job.id}>
+                  <Td>
+                    <IconButton
+                      variant="ghost"
+                      label={formatMessage(
+                        expanded === job.id
+                          ? {
+                              id: getTranslation('jobs.detail.hide'),
+                              defaultMessage: 'Hide details',
+                            }
+                          : {
+                              id: getTranslation('jobs.detail.show'),
+                              defaultMessage: 'Show details',
+                            }
+                      )}
+                      onClick={() => setExpanded((current) => (current === job.id ? null : job.id))}
+                    >
+                      {expanded === job.id ? <ChevronUp /> : <ChevronDown />}
+                    </IconButton>
+                  </Td>
                   <Td>
                     <Badge variant={STATUS_VARIANT[job.status]}>{job.status}</Badge>
                   </Td>
@@ -292,8 +330,17 @@ const JobsPage = () => {
                       {durationBetween(job.startedAt, job.finishedAt) ?? '—'}
                     </Typography>
                   </Td>
-                </Tr>
-              ))}
+                </Tr>,
+                ...(expanded === job.id
+                  ? [
+                      <Tr key={`${job.id}-detail`}>
+                        <Td colSpan={COLUMNS}>
+                          <JobDetail id={job.id} onRetried={refresh} />
+                        </Td>
+                      </Tr>,
+                    ]
+                  : []),
+              ])}
             </Tbody>
           </Table>
         )}
