@@ -107,6 +107,42 @@ export const progressOf = (items: JobItem[]): JobProgress => {
 };
 
 /**
+ * What a finished run is called.
+ *
+ * Three rules, and the third is the one worth explaining.
+ *
+ * A run that translated nothing and failed everything **failed**. A run that translated something
+ * **completed**, whatever else happened alongside — partial success is success, and the items say
+ * what was skipped.
+ *
+ * A **monitored** run that wrote nothing and broke nothing is **skipped**, not completed. Monitoring
+ * publishes on a trigger rather than a button, so most of its runs will correctly do nothing, and
+ * calling those "completed" would fill the list with rows that changed nothing while the fingerprint
+ * check's identical outcome sat behind a filter. One meaning per bucket: skipped is "nothing
+ * changed", completed is "something was written".
+ *
+ * A run **somebody started** stays completed in the same situation. They pressed a button and are
+ * entitled to find the result where they expect it, rather than behind a filter that is off by
+ * default. The same outcome is therefore filed differently by origin, which is deliberate: what the
+ * status is *for* differs between a surface a person is watching and one that runs unattended.
+ */
+export const finalStatusFor = (origin: JobOrigin, progress: JobProgress): JobStatus => {
+  if (progress.total === 0) {
+    return 'completed';
+  }
+
+  if (progress.translated === 0 && progress.failed > 0) {
+    return 'failed';
+  }
+
+  if (origin === 'monitor' && progress.translated === 0 && progress.failed === 0) {
+    return 'skipped';
+  }
+
+  return 'completed';
+};
+
+/**
  * Reads and writes job rows.
  *
  * Item updates are read-modify-write on a JSON column, so they are serialised per job through an
@@ -439,10 +475,7 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
         return null;
       }
 
-      const { translated, failed, total } = job.progress;
-      const status: JobStatus = translated === 0 && failed > 0 ? 'failed' : 'completed';
-
-      await this.setStatus(id, total === 0 ? 'completed' : status);
+      await this.setStatus(id, finalStatusFor(job.origin, job.progress));
 
       return this.findOne(id);
     },

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { JOB_UID } from '../models/job';
 import { createFakeStrapi } from '../testing/fake-strapi';
-import jobStore from './job-store';
+import jobStore, { finalStatusFor } from './job-store';
 
 import type { FakeRow } from '../testing/fake-strapi';
 
@@ -120,5 +120,53 @@ describe('job-store.prune', () => {
     const { jobs } = withRows([]);
 
     expect(await jobs.prune(NOW, 30)).toBe(0);
+  });
+});
+
+const progress = (over: Partial<Record<string, number>> = {}) => ({
+  total: 1,
+  done: 1,
+  translated: 0,
+  skipped: 0,
+  failed: 0,
+  ...over,
+});
+
+describe('finalStatusFor', () => {
+  it('calls a run that translated something completed', () => {
+    expect(finalStatusFor('monitor', progress({ translated: 1 }))).toBe('completed');
+    expect(finalStatusFor('bulk', progress({ translated: 1 }))).toBe('completed');
+  });
+
+  /** Partial success is success; the items say what was skipped or failed alongside. */
+  it('calls a partly successful run completed', () => {
+    expect(finalStatusFor('monitor', progress({ total: 3, translated: 1, failed: 2 }))).toBe(
+      'completed'
+    );
+  });
+
+  it('calls a run that translated nothing and failed something failed', () => {
+    expect(finalStatusFor('monitor', progress({ failed: 1 }))).toBe('failed');
+    expect(finalStatusFor('document', progress({ failed: 1 }))).toBe('failed');
+  });
+
+  /**
+   * The distinction this rule exists for. Monitoring runs unattended and will correctly do nothing
+   * most of the time, so "changed nothing" is one bucket however it came about — otherwise a
+   * policy skip sat under Completed while the fingerprint check's identical outcome sat under
+   * Skipped.
+   */
+  it('calls a monitored run that changed nothing skipped', () => {
+    expect(finalStatusFor('monitor', progress({ skipped: 1 }))).toBe('skipped');
+  });
+
+  /** Somebody pressed a button and is entitled to find the result where they expect it. */
+  it('leaves a run somebody started as completed, even when it changed nothing', () => {
+    expect(finalStatusFor('bulk', progress({ skipped: 1 }))).toBe('completed');
+    expect(finalStatusFor('document', progress({ skipped: 1 }))).toBe('completed');
+  });
+
+  it('calls a run with no items at all completed rather than skipped', () => {
+    expect(finalStatusFor('monitor', progress({ total: 0, done: 0 }))).toBe('completed');
   });
 });
