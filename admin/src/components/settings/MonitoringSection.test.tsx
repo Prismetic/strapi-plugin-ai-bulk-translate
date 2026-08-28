@@ -12,8 +12,8 @@ const state = {
     { uid: 'api::homepage.homepage', kind: 'singleType', localized: true },
   ] as { uid: string; kind: string; localized: boolean }[] | null,
   locales: [
-    { code: 'en', name: 'English', isDefault: true },
-    { code: 'ar', name: 'Arabic', isDefault: false },
+    { code: 'en', name: 'English (en)', isDefault: true },
+    { code: 'ar', name: 'Arabic (ar)', isDefault: false },
   ],
   configs: {} as Record<string, MonitorConfig>,
   isLoading: false,
@@ -104,6 +104,16 @@ describe('MonitoringSection', () => {
     expand('article');
 
     expect(translateBox()).not.toBeNull();
+  });
+
+  /** Shipped as "Arabic (ar) (ar)": i18n's name already carries the parenthetical. */
+  it('names a locale once, not twice', () => {
+    state.configs = { 'api::article.article': monitored() };
+    render(<MonitoringSection />);
+    expand('article');
+
+    expect(screen.getByText('Arabic (ar)')).toBeTruthy();
+    expect(screen.queryByText(/\(ar\)\s*\(ar\)/)).toBeNull();
   });
 
   it('names its columns once, above every row', () => {

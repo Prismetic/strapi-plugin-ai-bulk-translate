@@ -8,6 +8,7 @@ import { useMonitorConfig, type MonitorConfig } from '../../hooks/useMonitorConf
 import { useSettingsPermission } from '../../hooks/useSettingsPermission';
 import { useTranslatableContentTypes } from '../../hooks/useTranslatableContentTypes';
 import { getTranslation } from '../../utils/getTranslation';
+import { localeLabel } from '../../utils/localeLabel';
 import { localeIn, patchLocale, toggleLocale } from '../../utils/monitorPolicy';
 
 /**
@@ -16,7 +17,7 @@ import { localeIn, patchLocale, toggleLocale } from '../../utils/monitorPolicy';
  * every row so a column can be read down.
  */
 const LABEL_WIDTH = '20rem';
-const CELL_WIDTH = '12rem';
+const CELL_WIDTH = '18rem';
 
 const blank = (contentType: string): MonitorConfig => ({
   contentType,
@@ -134,7 +135,7 @@ const MonitoringSection = () => {
           </Box>
           {columns.map((label) => (
             <Cell key={label}>
-              <Typography variant="sigma" textColor="neutral500">
+              <Typography variant="sigma" textColor="neutral500" textAlign="center">
                 {label}
               </Typography>
             </Cell>
@@ -207,7 +208,7 @@ const MonitoringSection = () => {
               {draft.enabled && isOpen
                 ? targets.map((locale) => {
                     const monitored = localeIn(draft.locales, locale.code);
-                    const name = `${locale.name} (${locale.code})`;
+                    const name = localeLabel(locale);
 
                     return (
                       <Flex

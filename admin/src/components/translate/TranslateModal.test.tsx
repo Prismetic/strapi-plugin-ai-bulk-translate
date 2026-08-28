@@ -13,9 +13,9 @@ import { render, screen } from '../../testing/render';
  */
 const hooks = {
   locales: [
-    { code: 'en', name: 'English', isDefault: true },
-    { code: 'ar', name: 'Arabic', isDefault: false },
-    { code: 'fr', name: 'French', isDefault: false },
+    { code: 'en', name: 'English (en)', isDefault: true },
+    { code: 'ar', name: 'Arabic (ar)', isDefault: false },
+    { code: 'fr', name: 'French (fr)', isDefault: false },
   ],
 };
 
@@ -92,9 +92,9 @@ const offered = (code: string) =>
 
 beforeEach(() => {
   hooks.locales = [
-    { code: 'en', name: 'English', isDefault: true },
-    { code: 'ar', name: 'Arabic', isDefault: false },
-    { code: 'fr', name: 'French', isDefault: false },
+    { code: 'en', name: 'English (en)', isDefault: true },
+    { code: 'ar', name: 'Arabic (ar)', isDefault: false },
+    { code: 'fr', name: 'French (fr)', isDefault: false },
   ];
 });
 
@@ -114,6 +114,14 @@ describe('TranslateModal target locales', () => {
     expect(offered('fr')).not.toBeNull();
   });
 
+  /** The same defect reached the dialog, and had shipped in it. */
+  it('names a locale once, not twice', () => {
+    open('en');
+
+    expect(screen.queryByText(/\(ar\)\s*\(ar\)/)).toBeNull();
+    expect(screen.queryByText(/\(fr\)\s*\(fr\)/)).toBeNull();
+  });
+
   it('does not offer the locale being translated from', () => {
     open('ar');
 
@@ -123,8 +131,8 @@ describe('TranslateModal target locales', () => {
   /** Nothing left to offer is explained, rather than shown as an empty list. */
   it('says so when the only other locale is the default', () => {
     hooks.locales = [
-      { code: 'en', name: 'English', isDefault: true },
-      { code: 'ar', name: 'Arabic', isDefault: false },
+      { code: 'en', name: 'English (en)', isDefault: true },
+      { code: 'ar', name: 'Arabic (ar)', isDefault: false },
     ];
     open('ar');
 

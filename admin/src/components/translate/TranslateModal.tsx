@@ -18,6 +18,7 @@ import { useLocales } from '../../hooks/useLocales';
 import { useModels } from '../../hooks/useModels';
 import { useTranslationJob, type JobItem } from '../../hooks/useTranslationJob';
 import { getTranslation } from '../../utils/getTranslation';
+import { localeLabel } from '../../utils/localeLabel';
 import { groupProgressByDocument, resolveOutcome, type BlockedReason } from '../../utils/outcome';
 import { translationTargets } from '../../utils/translationTargets';
 import { ConflictList } from './ConflictList';
@@ -261,7 +262,7 @@ const TranslateModal = ({
                       checked={selected.includes(locale.code)}
                       onCheckedChange={() => toggle(locale.code)}
                     >
-                      {`${locale.name} (${locale.code})`}
+                      {localeLabel(locale)}
                     </Checkbox>
                   ))}
                 </Flex>
