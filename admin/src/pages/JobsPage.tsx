@@ -21,23 +21,11 @@ import { useState } from 'react';
 import { useIntl } from 'react-intl';
 
 import { JobDetail } from '../components/jobs/JobDetail';
-import { useJobs, type JobStatus, type JobSummary } from '../hooks/useJobs';
+import { useJobs, type JobSummary } from '../hooks/useJobs';
 import { getTranslation } from '../utils/getTranslation';
+import { badgeVariantFor } from '../utils/jobBadge';
 import { durationBetween, namedEntries } from '../utils/jobEntries';
 import { statusesFor } from '../utils/jobFilters';
-
-const STATUS_VARIANT: Record<
-  JobStatus,
-  'secondary' | 'alternative' | 'success' | 'danger' | 'neutral'
-> = {
-  queued: 'secondary',
-  processing: 'alternative',
-  completed: 'success',
-  failed: 'danger',
-  // Neutral on purpose: a skipped run is neither good news nor bad, and colouring it either way
-  // would draw the eye to the runs that mean least.
-  skipped: 'neutral',
-};
 
 /** `api::article.article` says nothing an editor needs; `article` does. */
 const shortType = (uid: string): string => uid.split('.').pop() ?? uid;
@@ -306,7 +294,7 @@ const JobsPage = () => {
                     </IconButton>
                   </Td>
                   <Td>
-                    <Badge variant={STATUS_VARIANT[job.status]}>{job.status}</Badge>
+                    <Badge variant={badgeVariantFor(job.status, job.progress)}>{job.status}</Badge>
                   </Td>
                   <Td>
                     <Typography>{shortType(job.contentType)}</Typography>

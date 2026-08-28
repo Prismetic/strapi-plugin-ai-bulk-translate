@@ -352,3 +352,22 @@ describe('JobsPage and skipped runs', () => {
     expect(screen.getByText('skipped')).toBeTruthy();
   });
 });
+
+describe('JobsPage statuses', () => {
+  /**
+   * Colour is decided by `badgeVariantFor` and tested there — a class name in jsdom proves
+   * nothing about what a person sees. What the page owes is that each run shows its own status.
+   */
+  it('shows each run under its own status', () => {
+    state.jobs = [
+      job({ id: 1, status: 'skipped' }),
+      job({ id: 2, status: 'completed' }),
+      job({ id: 3, status: 'failed' }),
+    ];
+    render(<JobsPage />);
+
+    expect(screen.getByText('skipped')).toBeTruthy();
+    expect(screen.getByText('completed')).toBeTruthy();
+    expect(screen.getByText('failed')).toBeTruthy();
+  });
+});
