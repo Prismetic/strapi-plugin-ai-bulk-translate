@@ -53,6 +53,9 @@ admin rather than from configuration files.
   of either means registering a replacement, promoting it, then removing the original.
 - There is no way to AI-translate *into* the default locale, including to repair a bad default-locale
   entry from a good translation. That is the point of treating it as the source of truth.
+- **A monitored republish that changes nothing costs nothing.** The plugin fingerprints the text a
+  run would send to a model, so an unpublish/republish, or an edit that only touched a relation or a
+  non-translated field, records a skipped run and makes no model call.
 - **A run in progress cannot be stopped.** Closing the dialog does not cancel it, and the button says
   `Close` rather than `Cancel` for that reason. What bounds a mistaken run is the server-side entry
   cap, `maxDocumentsPerRun`.

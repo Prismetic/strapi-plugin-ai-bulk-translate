@@ -30,6 +30,7 @@
   "ai-bulk-translate.jobs.entries.count": "{count, plural, one {# entry} other {# entries}}",
   "ai-bulk-translate.jobs.entries.more": " +{count} more",
   "ai-bulk-translate.jobs.filter.completed": "Show completed",
+  "ai-bulk-translate.jobs.filter.skipped": "Show skipped",
   "ai-bulk-translate.jobs.intro": "Runs that are queued, in progress, or failed. Completed runs are hidden.",
   "ai-bulk-translate.jobs.intro.all": "Runs that are queued, in progress, failed, or completed.",
   "ai-bulk-translate.jobs.loading": "Loading runs…",

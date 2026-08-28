@@ -26,11 +26,17 @@ import { getTranslation } from '../utils/getTranslation';
 import { durationBetween, namedEntries } from '../utils/jobEntries';
 import { statusesFor } from '../utils/jobFilters';
 
-const STATUS_VARIANT: Record<JobStatus, 'secondary' | 'alternative' | 'success' | 'danger'> = {
+const STATUS_VARIANT: Record<
+  JobStatus,
+  'secondary' | 'alternative' | 'success' | 'danger' | 'neutral'
+> = {
   queued: 'secondary',
   processing: 'alternative',
   completed: 'success',
   failed: 'danger',
+  // Neutral on purpose: a skipped run is neither good news nor bad, and colouring it either way
+  // would draw the eye to the runs that mean least.
+  skipped: 'neutral',
 };
 
 /** `api::article.article` says nothing an editor needs; `article` does. */
@@ -79,9 +85,10 @@ const JobsPage = () => {
   const { formatMessage } = useIntl();
   const [page, setPage] = useState(1);
   const [completed, setCompleted] = useState(false);
+  const [skipped, setSkipped] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const { jobs, meta, isLoading, error, refresh } = useJobs({
-    statuses: statusesFor({ completed }),
+    statuses: statusesFor({ completed, skipped }),
     page,
   });
 
@@ -89,10 +96,14 @@ const JobsPage = () => {
    * Widening the filter changes what page one contains, so staying on page four would show a
    * different slice of a different list — and possibly nothing at all.
    */
-  const setFilter = (next: boolean) => {
-    setCompleted(next);
+  /**
+   * Widening the filter changes what page one holds, so staying on page four would show a
+   * different slice of a different list. The open run may not be in the new list either, and a
+   * detail panel describing a row that is no longer there is worse than none.
+   */
+  const widen = (apply: () => void) => {
+    apply();
     setPage(1);
-    // The open run may not be in the new list at all; leaving it open would strand a detail panel.
     setExpanded(null);
   };
 
@@ -146,15 +157,29 @@ const JobsPage = () => {
                 })}
           </Typography>
 
-          <Checkbox
-            checked={completed}
-            onCheckedChange={(next: boolean) => setFilter(Boolean(next))}
-          >
-            {formatMessage({
-              id: getTranslation('jobs.filter.completed'),
-              defaultMessage: 'Show completed',
-            })}
-          </Checkbox>
+          <Flex gap={4}>
+            <Checkbox
+              checked={completed}
+              onCheckedChange={(next: boolean) => widen(() => setCompleted(Boolean(next)))}
+            >
+              {formatMessage({
+                id: getTranslation('jobs.filter.completed'),
+                defaultMessage: 'Show completed',
+              })}
+            </Checkbox>
+
+            {/* Separate from completed on purpose: on a site that publishes often these are the
+                volume, and folding them together would bury the runs somebody wanted to see. */}
+            <Checkbox
+              checked={skipped}
+              onCheckedChange={(next: boolean) => widen(() => setSkipped(Boolean(next)))}
+            >
+              {formatMessage({
+                id: getTranslation('jobs.filter.skipped'),
+                defaultMessage: 'Show skipped',
+              })}
+            </Checkbox>
+          </Flex>
         </Flex>
 
         {jobs.length === 0 ? (

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { JobStatus } from '../services/job-store';
 
 /** Every status a run can hold. Kept beside the schema so the two cannot drift. */
-export const JOB_STATUSES = ['queued', 'processing', 'completed', 'failed'] as const;
+export const JOB_STATUSES = ['queued', 'processing', 'completed', 'failed', 'skipped'] as const;
 
 /**
  * What the Jobs tab opens on: everything a person might act on.

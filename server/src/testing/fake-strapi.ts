@@ -29,8 +29,55 @@ export const createFakeDb = (seed: Record<string, FakeRow[]> = {}) => {
     return tables.get(uid)!;
   };
 
+  /**
+   * Flat equality, plus the operators the plugin actually issues.
+   *
+   * `$in` and `$lt` are not decoration: the retention prune and the monitoring fingerprint lookup
+   * both use them, and a matcher that silently ignored an operator would answer "no rows" for every
+   * such query — which looks exactly like the feature deciding not to act, and passes.
+   */
+  const OPERATORS: Record<string, (value: unknown, operand: unknown) => boolean> = {
+    $in: (value, operand) => Array.isArray(operand) && operand.includes(value),
+    $notIn: (value, operand) => Array.isArray(operand) && !operand.includes(value),
+    $ne: (value, operand) => value !== operand,
+    $lt: (value, operand) => compare(value) < compare(operand),
+    $lte: (value, operand) => compare(value) <= compare(operand),
+    $gt: (value, operand) => compare(value) > compare(operand),
+    $gte: (value, operand) => compare(value) >= compare(operand),
+  };
+
+  /** Dates arrive as Date or ISO string depending on who wrote the row; compare them as numbers. */
+  function compare(value: unknown): number {
+    if (value instanceof Date) {
+      return value.getTime();
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Date.parse(value);
+
+      return Number.isNaN(parsed) ? Number.NaN : parsed;
+    }
+
+    return Number(value);
+  }
+
+  const isOperatorClause = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    !(value instanceof Date) &&
+    Object.keys(value).every((key) => key in OPERATORS);
+
   const matches = (row: FakeRow, where: FakeRow = {}) =>
-    Object.entries(where).every(([key, value]) => row[key] === value);
+    Object.entries(where).every(([key, expected]) => {
+      if (isOperatorClause(expected)) {
+        return Object.entries(expected).every(([operator, operand]) =>
+          OPERATORS[operator](row[key], operand)
+        );
+      }
+
+      return row[key] === expected;
+    });
 
   const nextId = (uid: string) =>
     rowsFor(uid).reduce((max, row) => Math.max(max, Number(row.id)), 0) + 1;

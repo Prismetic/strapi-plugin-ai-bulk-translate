@@ -6,7 +6,13 @@ import { timestampsFor } from './job-timing';
 import type { JobDocument } from './entry-identity';
 import type { Core } from '@strapi/strapi';
 
-export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+/**
+ * `skipped` is a run that was recorded but never worked: monitoring found the source text
+ * unchanged since the last translation, so no model was called. It is recorded rather than
+ * silently dropped because a correctly-working monitor and a broken one are otherwise
+ * indistinguishable.
+ */
+export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'skipped';
 
 export type JobOrigin = 'document' | 'bulk' | 'monitor';
 
@@ -39,6 +45,7 @@ export interface JobRow {
   overwriteDocumentIds: string[];
   items: JobItem[];
   status: JobStatus;
+  sourceFingerprint: string | null;
   modelId: number | null;
   createdById: number | null;
   createdAt: string | Date;
@@ -58,6 +65,8 @@ export interface JobInput {
   overwriteDocumentIds?: string[];
   modelId?: number | null;
   createdById?: number | null;
+  /** Monitored runs only: the hash of the source text, so a later publish can compare against it. */
+  sourceFingerprint?: string | null;
 }
 
 export interface JobProgress {
@@ -161,6 +170,7 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
           overwriteDocumentIds: input.overwriteDocumentIds ?? [],
           items,
           status: 'queued',
+          sourceFingerprint: input.sourceFingerprint ?? null,
           modelId: input.modelId ?? null,
           createdById: input.createdById ?? null,
           startedAt: null,
@@ -265,6 +275,61 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
       }
 
       return null;
+    },
+
+    /**
+     * The source fingerprint of the last monitored run that actually settled this entry.
+     *
+     * Only runs that completed or were themselves skipped count. A run that **failed** leaves
+     * locales untranslated, and treating its fingerprint as current would mean the next publish
+     * skipped too — the failure would become permanent, silently.
+     *
+     * Bounded like the last-write lookup, and conservative in the same direction: not finding a
+     * record means the run goes ahead, which costs a translation rather than losing one.
+     */
+    async lastFingerprintFor(contentType: string, documentId: string, sourceLocale: string) {
+      const rows = (await query().findMany({
+        where: { contentType, sourceLocale, status: { $in: ['completed', 'skipped'] } },
+        orderBy: { id: 'desc' },
+        limit: WRITE_LOOKBACK,
+        select: ['id', 'documentIds', 'sourceFingerprint'],
+      })) as Pick<JobRow, 'id' | 'documentIds' | 'sourceFingerprint'>[];
+
+      const row = rows.find(
+        (candidate) =>
+          candidate.sourceFingerprint && (candidate.documentIds ?? []).includes(documentId)
+      );
+
+      return row?.sourceFingerprint ?? null;
+    },
+
+    /**
+     * Records a run that was never worked, with the same reason against every item.
+     *
+     * The job row is the audit trail either way: "nothing changed" has to be visible, because a
+     * monitor that correctly does nothing and one that is broken look identical from outside.
+     */
+    async recordSkipped(id: number, reason: string): Promise<PublicJob | null> {
+      await serialize(id, async () => {
+        const row = (await query().findOne({ where: { id } })) as JobRow | null;
+
+        if (!row) {
+          return;
+        }
+
+        const items = (row.items ?? []).map((item) => ({
+          ...item,
+          status: 'skipped' as const,
+          skippedReason: reason,
+        }));
+
+        await query().update({
+          where: { id },
+          data: { items, status: 'skipped', updatedAt: new Date() },
+        });
+      });
+
+      return this.findOne(id);
     },
 
     async findOne(id: number): Promise<PublicJob | null> {

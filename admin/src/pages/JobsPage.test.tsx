@@ -303,3 +303,52 @@ describe('JobsPage drill-down', () => {
     expect(screen.queryByTestId('detail-1')).toBeNull();
   });
 });
+
+describe('JobsPage and skipped runs', () => {
+  it('asks for neither completed nor skipped by default', () => {
+    render(<JobsPage />);
+
+    expect(lastAsk().statuses).not.toContain('completed');
+    expect(lastAsk().statuses).not.toContain('skipped');
+  });
+
+  it('adds skipped runs when asked for', () => {
+    render(<JobsPage />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show skipped' }));
+
+    expect(lastAsk().statuses).toContain('skipped');
+  });
+
+  /** Skipped runs are the volume; folding them in with completed would bury what was wanted. */
+  it('keeps the two filters independent', () => {
+    render(<JobsPage />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show completed' }));
+
+    expect(lastAsk().statuses).toContain('completed');
+    expect(lastAsk().statuses).not.toContain('skipped');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show skipped' }));
+
+    expect(lastAsk().statuses).toContain('completed');
+    expect(lastAsk().statuses).toContain('skipped');
+  });
+
+  it('returns to the first page and closes any open run when skipped are added', () => {
+    state.meta = { page: 2, pageSize: 20, total: 45, pageCount: 3 };
+    render(<JobsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show details' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show skipped' }));
+
+    expect(lastAsk().page).toBe(1);
+    expect(screen.queryByTestId('detail-1')).toBeNull();
+  });
+
+  it('renders a skipped run without colouring it as good or bad news', () => {
+    state.jobs = [job({ status: 'skipped' })];
+    render(<JobsPage />);
+
+    expect(screen.getByText('skipped')).toBeTruthy();
+  });
+});

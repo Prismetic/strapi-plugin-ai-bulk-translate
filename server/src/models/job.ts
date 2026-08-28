@@ -38,8 +38,15 @@ export const jobModel = {
     documents: { type: 'json' },
     /** `[{ documentId, locale, status, skippedReason?, error?, targetPath? }]`. */
     items: { type: 'json' },
-    /** `queued` | `processing` | `completed` | `failed`. */
+    /** `queued` | `processing` | `completed` | `failed` | `skipped`. */
     status: { type: 'string', column: { notNullable: true } },
+    /**
+     * A hash of the source text this run was about.
+     *
+     * Recorded so a later monitored publish can tell whether anything a translation depends on has
+     * actually changed. Only monitored runs set it.
+     */
+    sourceFingerprint: { type: 'string' },
     /** The registered model row used for the run, recorded for audit. */
     modelId: { type: 'integer' },
     createdById: { type: 'integer' },
