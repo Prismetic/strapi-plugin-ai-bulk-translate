@@ -53,6 +53,12 @@ admin rather than from configuration files.
   of either means registering a replacement, promoting it, then removing the original.
 - There is no way to AI-translate *into* the default locale, including to repair a bad default-locale
   entry from a good translation. That is the point of treating it as the source of truth.
+- **A run in progress cannot be stopped.** Closing the dialog does not cancel it, and the button says
+  `Close` rather than `Cancel` for that reason. What bounds a mistaken run is the server-side entry
+  cap, `maxDocumentsPerRun`.
+- **An expired admin session is reported as `Missing or invalid credentials`**, rendered above the
+  API key field on the provider and model forms. It reads as a rejected provider key. If credentials
+  that worked yesterday appear to fail, sign in again before re-checking them.
 
 ### Requires
 
