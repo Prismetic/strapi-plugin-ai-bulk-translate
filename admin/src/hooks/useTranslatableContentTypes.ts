@@ -70,5 +70,9 @@ export const useTranslatableContentTypes = () => {
 
       return contentTypes.some((entry) => entry.uid === uid && entry.localized);
     },
+
+
+    /** Localized types only, which is every type either surface can do anything with. */
+    translatable: contentTypes?.filter((entry) => entry.localized) ?? null,
   };
 };

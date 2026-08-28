@@ -4,6 +4,7 @@ import job from './job.controller';
 import locale from './locale.controller';
 import localeStatus from './locale-status.controller';
 import model from './model.controller';
+import monitor from './monitor.controller';
 import provider from './provider.controller';
 import settings from './settings.controller';
 
@@ -15,5 +16,6 @@ export default {
   locale,
   'locale-status': localeStatus,
   'content-type': contentType,
+  monitor,
   settings,
 };

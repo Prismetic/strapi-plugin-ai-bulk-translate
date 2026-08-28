@@ -113,6 +113,20 @@ export default [
 
   // --- what the translate dialog needs to render ----------------------------------------------
   { method: 'GET', path: '/locales', handler: 'locale.find', config: requires(ACTIONS.translate) },
+
+  // --- monitoring ------------------------------------------------------------------------------
+  {
+    method: 'GET',
+    path: '/monitor-config',
+    handler: 'monitor.find',
+    config: requires(ACTIONS.settingsRead),
+  },
+  {
+    method: 'PUT',
+    path: '/monitor-config',
+    handler: 'monitor.update',
+    config: requires(ACTIONS.settingsUpdate),
+  },
   {
     method: 'GET',
     path: '/content-types',

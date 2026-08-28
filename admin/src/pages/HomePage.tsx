@@ -3,14 +3,14 @@ import { useIntl } from 'react-intl';
 
 import { ModelsSection } from '../components/models/ModelsSection';
 import { ProvidersSection } from '../components/providers/ProvidersSection';
+import { MonitoringSection } from '../components/settings/MonitoringSection';
 import { TranslationSection } from '../components/settings/TranslationSection';
 import { getTranslation } from '../utils/getTranslation';
 
 /**
  * Settings page. Sections are accordion items rather than tabs: configuring this is a sequential
  * task — add a provider, register a model under it, tune the prompt — and an accordion lets two
- * sections stay open at once while cross-referencing. The Monitoring section is added by a later
- * slice.
+ * sections stay open at once while cross-referencing.
  *
  * The page title and the Settings/Jobs tabs belong to the layout in App, not here.
  */
@@ -64,6 +64,22 @@ const HomePage = () => {
           <Accordion.Content>
             <Box padding={5}>
               <TranslationSection />
+            </Box>
+          </Accordion.Content>
+        </Accordion.Item>
+
+        <Accordion.Item value="monitoring">
+          <Accordion.Header>
+            <Accordion.Trigger>
+              {formatMessage({
+                id: getTranslation('monitoring.section'),
+                defaultMessage: 'Monitoring',
+              })}
+            </Accordion.Trigger>
+          </Accordion.Header>
+          <Accordion.Content>
+            <Box padding={5}>
+              <MonitoringSection />
             </Box>
           </Accordion.Content>
         </Accordion.Item>
