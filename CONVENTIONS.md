@@ -25,6 +25,16 @@ A static import compiles, typechecks, and passes review — then throws `ERR_REQ
 loads the plugin. No tsconfig catches it (verified against three module/resolution combinations).
 `scripts/assert-esm-boundary.mjs` runs as a postbuild step and is the only thing that does.
 
+**One exception, in `provider-registry.ts`: `import type { LanguageModel } from 'ai'`.** A
+type-only import is erased before emit, so nothing reaches the CommonJS bundle, and the postbuild
+assertion fails the build if the `type` keyword is ever dropped. It is load-bearing rather than
+convenient: without it `getModel`'s inferred return type can only be named through
+`ai/node_modules/@ai-sdk/provider`, TypeScript refuses to write that into a declaration file
+(**TS2742**), and `vite-plugin-dts` then emits **no `.d.ts` at all** for the server entry — while
+`package.json` goes on advertising one. `npm run typecheck` cannot see this, because `--noEmit`
+never has to name the type. Do not "tidy" that import away; annotate rather than infer at any
+boundary where an SDK type would leak into the public surface.
+
 ## Server
 
 - Directory layout follows Strapi's plugin convention: `config`, `controllers`, `routes`, `services`,

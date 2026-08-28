@@ -3,6 +3,16 @@ import { loadAiSdk } from './ai-sdk';
 
 import type { Core } from '@strapi/strapi';
 import type { ProviderRow } from './provider-store';
+/**
+ * A **type-only** import of the SDK, and the only one in the plugin.
+ *
+ * It does not breach the ESM boundary: `import type` is erased before emit, so nothing reaches the
+ * CommonJS bundle, and `assert-esm-boundary.mjs` fails the build if the `type` keyword is ever
+ * dropped. It is here because without it `getModel`'s inferred return type can only be named
+ * through `ai/node_modules/@ai-sdk/provider`, which TypeScript refuses to write into a declaration
+ * file (TS2742) — and then emits **no declaration file at all** for the server entry point.
+ */
+import type { LanguageModel } from 'ai';
 
 /**
  * Turns a stored connection into a language model the AI SDK can call.
@@ -90,8 +100,13 @@ const providerRegistry = ({ strapi }: { strapi: Core.Strapi }) => {
   };
 
   return {
-    /** Resolves a callable language model for a connection and model identifier. */
-    async getModel(row: ProviderRow, modelId: string) {
+    /**
+     * Resolves a callable language model for a connection and model identifier.
+     *
+     * The return type is annotated rather than inferred. See the type-only import above: without it
+     * the declaration emit fails and consumers get no types for `strapi-server` at all.
+     */
+    async getModel(row: ProviderRow, modelId: string): Promise<LanguageModel> {
       const provider = await buildProvider(row);
 
       return provider(modelId);
