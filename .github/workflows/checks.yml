@@ -1,0 +1,41 @@
+# The four commands under `feedback` in workflow.config.json, in the order they appear there.
+# CI and the local loop run the same checks on purpose: if they drift, the AFK loop starts
+# committing work that CI then rejects.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Both versions report, rather than the first failure hiding the second.
+      fail-fast: false
+      matrix:
+        # The plugin's own floor, and the ceiling Strapi 5 hosts cap at.
+        node: ['20', '22']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # `npm ci` rather than `npm install`: it fails on a lockfile that has drifted from
+      # package.json instead of quietly rewriting it, which is what CI is for.
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # Includes the postbuild ESM boundary assertion, which is the only check that observes
+      # what actually ships.
+      - run: npm run build

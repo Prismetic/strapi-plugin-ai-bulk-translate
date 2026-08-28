@@ -1,8 +1,20 @@
 {
   "name": "strapi-plugin-ai-bulk-translate",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Bulk AI translation for Strapi v5, with admin-managed providers and models",
   "license": "MIT",
+  "author": "Prismetic",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Prismetic/strapi-plugin-ai-bulk-translate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Prismetic/strapi-plugin-ai-bulk-translate/issues"
+  },
+  "homepage": "https://github.com/Prismetic/strapi-plugin-ai-bulk-translate#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "commonjs",
   "keywords": [
     "strapi",
@@ -36,6 +48,7 @@
   "scripts": {
     "build": "strapi-plugin build",
     "postbuild": "node scripts/assert-esm-boundary.mjs",
+    "prepublishOnly": "npm run build",
     "watch": "strapi-plugin watch",
     "watch:link": "strapi-plugin watch:link",
     "push": "node scripts/push-to-host.mjs",
