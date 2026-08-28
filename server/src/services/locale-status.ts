@@ -1,5 +1,7 @@
 import { extractFields } from './field-extractor';
 
+import { titleOf } from './entry-identity';
+
 import type { Core } from '@strapi/strapi';
 import type { ComponentSchemas, ExtractorSchema } from './field-extractor';
 
@@ -67,27 +69,6 @@ export const classifyLocale = (
 };
 
 const localeStatus = ({ strapi }: { strapi: Core.Strapi }) => {
-  const titleOf = async (contentType: string, document: Record<string, unknown>): Promise<string> => {
-    try {
-      const schema = strapi.contentType(contentType as never);
-      const configuration = await strapi
-        .plugin('content-manager')
-        .service('content-types')
-        .findConfiguration(schema as never);
-
-      const mainField = configuration?.settings?.mainField as string | undefined;
-      const value = mainField ? document[mainField] : undefined;
-
-      if (typeof value === 'string' && value.trim() !== '') {
-        return value;
-      }
-    } catch {
-      // A missing configuration is not a reason to fail the whole preview.
-    }
-
-    return String(document.documentId ?? 'Untitled');
-  };
-
   return {
     hasTranslatableContent,
     classifyLocale,
@@ -146,7 +127,7 @@ const localeStatus = ({ strapi }: { strapi: Core.Strapi }) => {
 
         rows.push({
           documentId,
-          title: source ? await titleOf(contentType, source) : documentId,
+          title: source ? await titleOf(strapi, contentType, source) : documentId,
           locales,
           excluded: !sourceHasContent,
         });

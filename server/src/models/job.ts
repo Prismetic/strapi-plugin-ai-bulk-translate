@@ -29,13 +29,23 @@ export const jobModel = {
      * arrives in a later slice; the column is the audit trail either way.
      */
     overwriteDocumentIds: { type: 'json' },
-    /** `[{ documentId, locale, status, skippedReason?, error? }]`. */
+    /**
+     * `[{ documentId, title, sourcePath }]` — who the run was about, captured when it was created.
+     *
+     * Denormalised on purpose. History most needs to name an entry when that entry has since been
+     * renamed or deleted, and a lookup answers nothing exactly then.
+     */
+    documents: { type: 'json' },
+    /** `[{ documentId, locale, status, skippedReason?, error?, targetPath? }]`. */
     items: { type: 'json' },
     /** `queued` | `processing` | `completed` | `failed`. */
     status: { type: 'string', column: { notNullable: true } },
     /** The registered model row used for the run, recorded for audit. */
     modelId: { type: 'integer' },
     createdById: { type: 'integer' },
+    /** When work actually began, and ended. Distinct from createdAt: a run can sit queued. */
+    startedAt: { type: 'datetime' },
+    finishedAt: { type: 'datetime' },
     createdAt: { type: 'datetime', default: () => new Date() },
     updatedAt: { type: 'datetime', default: () => new Date() },
   },

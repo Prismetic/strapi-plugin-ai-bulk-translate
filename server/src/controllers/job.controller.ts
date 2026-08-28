@@ -2,6 +2,7 @@ import { jobCreateSchema } from '../validation/job';
 import { jobListQuerySchema } from '../validation/job-list';
 import { formatZodError } from '../validation/provider';
 import { defaultLocaleCode } from '../services/default-locale';
+import { identifyDocuments } from '../services/entry-identity';
 import { rejectTargetLocales } from '../validation/target-locales';
 
 import type { Context } from 'koa';
@@ -121,10 +122,23 @@ const jobController = {
       return;
     }
 
+    /**
+     * Read once, now, and stored on the run. History has to name these entries long after this
+     * request — including after they are renamed or deleted, which is exactly when a lookup would
+     * answer nothing.
+     */
+    const documents = await identifyDocuments(
+      strapi,
+      input.contentType,
+      documentIds,
+      input.sourceLocale
+    );
+
     const job = await plugin()
       .service('job-store')
       .create({
         origin: input.origin ?? 'document',
+        documents,
         contentType: input.contentType,
         sourceLocale: input.sourceLocale,
         targetLocales: input.targetLocales,

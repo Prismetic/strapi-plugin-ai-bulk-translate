@@ -44,8 +44,11 @@ const job = (over: Partial<JobSummary> = {}): JobSummary =>
     modelId: 1,
     createdById: 7,
     createdByName: 'Ada Lovelace',
+    documents: [{ documentId: 'abc', title: 'Rome', sourcePath: '/rome' }],
     createdAt: '2026-08-28T10:00:00.000Z',
     updatedAt: '2026-08-28T10:01:00.000Z',
+    startedAt: null,
+    finishedAt: null,
     progress: { total: 6, done: 2, translated: 2, skipped: 0, failed: 0 },
     ...over,
   }) as JobSummary;
@@ -61,12 +64,11 @@ beforeEach(() => {
 const lastAsk = () => asked[asked.length - 1];
 
 describe('JobsPage', () => {
-  it('lists a run with its status, entries and progress', () => {
+  it('lists a run with its status and progress', () => {
     render(<JobsPage />);
 
     expect(screen.getByText('processing')).toBeTruthy();
     expect(screen.getByText('2 of 6')).toBeTruthy();
-    expect(screen.getByText('3')).toBeTruthy();
   });
 
   /** `api::article.article` says nothing an editor needs. */
@@ -191,5 +193,59 @@ describe('JobsPage filter', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Show completed' }));
 
     expect(screen.getByText(/No runs yet/)).toBeTruthy();
+  });
+});
+
+describe('JobsPage entry names and timing', () => {
+  it('names the entries a run touched rather than counting them', () => {
+    render(<JobsPage />);
+
+    expect(screen.getByText('Rome')).toBeTruthy();
+  });
+
+  it('names the first few and counts the rest', () => {
+    state.jobs = [
+      job({
+        documentCount: 4,
+        documents: [
+          { documentId: 'a', title: 'Rome', sourcePath: null },
+          { documentId: 'b', title: 'Paris', sourcePath: null },
+          { documentId: 'c', title: 'Lisbon', sourcePath: null },
+          { documentId: 'd', title: 'Oslo', sourcePath: null },
+        ],
+      }),
+    ];
+    render(<JobsPage />);
+
+    expect(screen.getByText(/Rome, Paris/)).toBeTruthy();
+    expect(screen.getByText(/\+2 more/)).toBeTruthy();
+  });
+
+  /** Runs recorded before titles were stored still have to render. */
+  it('falls back to a count for a run with no titles recorded', () => {
+    state.jobs = [job({ documents: [], documentCount: 3 })];
+    render(<JobsPage />);
+
+    expect(screen.getByText('3 entries')).toBeTruthy();
+  });
+
+  it('shows how long a finished run took', () => {
+    state.jobs = [
+      job({
+        status: 'completed',
+        startedAt: '2026-08-28T10:00:00.000Z',
+        finishedAt: '2026-08-28T10:02:05.000Z',
+      }),
+    ];
+    render(<JobsPage />);
+
+    expect(screen.getByText('2m 5s')).toBeTruthy();
+  });
+
+  it('leaves the duration blank while a run is still going', () => {
+    state.jobs = [job({ startedAt: '2026-08-28T10:00:00.000Z', finishedAt: null })];
+    render(<JobsPage />);
+
+    expect(screen.getByText('—')).toBeTruthy();
   });
 });

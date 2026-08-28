@@ -18,6 +18,7 @@ import { useIntl } from 'react-intl';
 
 import { useJobs, type JobStatus, type JobSummary } from '../hooks/useJobs';
 import { getTranslation } from '../utils/getTranslation';
+import { durationBetween, namedEntries } from '../utils/jobEntries';
 import { statusesFor } from '../utils/jobFilters';
 
 const STATUS_VARIANT: Record<JobStatus, 'secondary' | 'alternative' | 'success' | 'danger'> = {
@@ -30,7 +31,44 @@ const STATUS_VARIANT: Record<JobStatus, 'secondary' | 'alternative' | 'success' 
 /** `api::article.article` says nothing an editor needs; `article` does. */
 const shortType = (uid: string): string => uid.split('.').pop() ?? uid;
 
-const COLUMNS = 8;
+const COLUMNS = 9;
+
+/**
+ * What a run was about, by name.
+ *
+ * Titles are frozen at run time, so this still says something useful about an entry that has been
+ * renamed or deleted since — which is when history is most worth having.
+ */
+const EntryNames = ({ job }: { job: JobSummary }) => {
+  const { formatMessage } = useIntl();
+  const { titles, remaining } = namedEntries(job.documents ?? [], job.documentCount);
+
+  if (titles.length === 0) {
+    return (
+      <Typography>
+        {formatMessage(
+          {
+            id: getTranslation('jobs.entries.count'),
+            defaultMessage: '{count, plural, one {# entry} other {# entries}}',
+          },
+          { count: remaining }
+        )}
+      </Typography>
+    );
+  }
+
+  return (
+    <Typography>
+      {titles.join(', ')}
+      {remaining > 0
+        ? formatMessage(
+            { id: getTranslation('jobs.entries.more'), defaultMessage: ' +{count} more' },
+            { count: remaining }
+          )
+        : ''}
+    </Typography>
+  );
+};
 
 const JobsPage = () => {
   const { formatMessage } = useIntl();
@@ -191,6 +229,14 @@ const JobsPage = () => {
                     })}
                   </Typography>
                 </Th>
+                <Th>
+                  <Typography variant="sigma">
+                    {formatMessage({
+                      id: getTranslation('jobs.column.took'),
+                      defaultMessage: 'Took',
+                    })}
+                  </Typography>
+                </Th>
               </Tr>
             </Thead>
             <Tbody>
@@ -208,7 +254,7 @@ const JobsPage = () => {
                     </Typography>
                   </Td>
                   <Td>
-                    <Typography>{job.documentCount}</Typography>
+                    <EntryNames job={job} />
                   </Td>
                   <Td>
                     <Typography textColor={job.progress.failed > 0 ? 'danger600' : undefined}>
@@ -240,6 +286,11 @@ const JobsPage = () => {
                   </Td>
                   <Td>
                     <Typography>{new Date(job.createdAt).toLocaleString()}</Typography>
+                  </Td>
+                  <Td>
+                    <Typography textColor="neutral600">
+                      {durationBetween(job.startedAt, job.finishedAt) ?? '—'}
+                    </Typography>
                   </Td>
                 </Tr>
               ))}

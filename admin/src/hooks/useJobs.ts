@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PLUGIN_ID } from '../pluginId';
 
+import type { JobDocument } from '../utils/jobEntries';
 import type { JobStatus as Status } from '../utils/jobFilters';
 
 export type { JobStatus } from '../utils/jobFilters';
@@ -19,12 +20,16 @@ export interface JobSummary {
   targetLocales: string[];
   status: Status;
   documentCount: number;
+  /** Titles and paths captured when the run was created; empty for runs recorded before that. */
+  documents: JobDocument[];
   modelId: number | null;
   createdById: number | null;
   /** Null when the account that started the run no longer exists, or when nothing started it. */
   createdByName: string | null;
   createdAt: string;
   updatedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
   progress: {
     total: number;
     done: number;

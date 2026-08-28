@@ -23,6 +23,8 @@ export interface TranslateOutcome {
   status: 'translated' | 'skipped' | 'failed';
   skippedReason?: string;
   error?: string;
+  /** The page path written in the target locale, where the content type has one. */
+  targetPath?: string | null;
 }
 
 /** Whatever the Content Manager's populate builder produces; passed straight back to `findOne`. */
@@ -381,7 +383,11 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         data: { ...data, ...uids } as never,
       });
 
-      return { status: 'translated' };
+      // The regenerated slug is the target locale's own path, not the source's — which is the
+      // whole reason it is regenerated rather than copied.
+      const written = Object.values(uids).find((value) => typeof value === 'string' && value !== '');
+
+      return { status: 'translated', targetPath: (written as string) ?? null };
     },
   };
 };

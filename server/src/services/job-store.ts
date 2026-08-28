@@ -1,5 +1,8 @@
 import { JOB_UID } from '../models';
 
+import { timestampsFor } from './job-timing';
+
+import type { JobDocument } from './entry-identity';
 import type { Core } from '@strapi/strapi';
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
@@ -15,6 +18,8 @@ export interface JobItem {
   /** Why the item was not translated, in words an editor can read. */
   skippedReason?: string;
   error?: string;
+  /** The page path this locale was written to, where the content type has one. */
+  targetPath?: string | null;
 }
 
 export interface JobRow {
@@ -24,6 +29,7 @@ export interface JobRow {
   sourceLocale: string;
   targetLocales: string[];
   documentIds: string[];
+  documents: JobDocument[];
   overwriteDocumentIds: string[];
   items: JobItem[];
   status: JobStatus;
@@ -31,6 +37,8 @@ export interface JobRow {
   createdById: number | null;
   createdAt: string | Date;
   updatedAt: string | Date;
+  startedAt: string | Date | null;
+  finishedAt: string | Date | null;
 }
 
 export interface JobInput {
@@ -39,6 +47,8 @@ export interface JobInput {
   sourceLocale: string;
   targetLocales: string[];
   documentIds: string[];
+  /** Titles and paths, resolved by the caller before the run is recorded. */
+  documents?: JobDocument[];
   overwriteDocumentIds?: string[];
   modelId?: number | null;
   createdById?: number | null;
@@ -138,11 +148,14 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
           sourceLocale: input.sourceLocale,
           targetLocales: input.targetLocales,
           documentIds: input.documentIds,
+          documents: input.documents ?? [],
           overwriteDocumentIds: input.overwriteDocumentIds ?? [],
           items,
           status: 'queued',
           modelId: input.modelId ?? null,
           createdById: input.createdById ?? null,
+          startedAt: null,
+          finishedAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -193,7 +206,22 @@ const jobStore = ({ strapi }: { strapi: Core.Strapi }) => {
 
     async setStatus(id: number, status: JobStatus): Promise<void> {
       await serialize(id, async () => {
-        await query().update({ where: { id }, data: { status, updatedAt: new Date() } });
+        const row = (await query().findOne({ where: { id } })) as JobRow | null;
+
+        if (!row) {
+          return;
+        }
+
+        const now = new Date();
+
+        await query().update({
+          where: { id },
+          data: {
+            status,
+            ...timestampsFor(status, row, now),
+            updatedAt: now,
+          },
+        });
       });
     },
 
