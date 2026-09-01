@@ -48,11 +48,12 @@ describe('PluginIcon', () => {
   });
 
   /**
-   * This mark renders three times on one page — the menu entry, the edit-view button and the bulk
-   * action. The artwork's clip paths carried document-wide ids, which would have been duplicated
-   * once per instance. They were exact bounding boxes of what they clipped, so nothing was lost.
+   * The reason the clip ids are generated rather than taken from the artwork. This mark renders
+   * three times on one page — the menu entry, the edit-view button and the bulk action — and the
+   * artwork ships fixed ids, so three copies would put duplicates in the document and every
+   * `url(#…)` would resolve to whichever came first.
    */
-  it('carries no ids, so three of them on a page cannot collide', () => {
+  it('gives every instance its own clip ids', () => {
     const { container } = render(
       <>
         <PluginIcon />
@@ -61,14 +62,29 @@ describe('PluginIcon', () => {
       </>
     );
 
-    // Scoped to the icons: the design-system provider renders its own live region with an id.
-    expect(container.querySelectorAll('svg[id], svg [id]')).toHaveLength(0);
-    expect(container.innerHTML).not.toMatch(/clipPath|url\(#/);
+    const ids = [...container.querySelectorAll('clipPath[id]')].map((node) => node.id);
+
+    expect(ids.length).toBe(9);
+    expect(new Set(ids).size).toBe(9);
+  });
+
+  it('points every clip at an id that exists in the same instance', () => {
+    const { container } = render(<PluginIcon />);
+
+    const defined = new Set([...container.querySelectorAll('clipPath[id]')].map((n) => n.id));
+    const referenced = [...container.querySelectorAll('[clip-path]')].map((node) =>
+      (node.getAttribute('clip-path') ?? '').replace(/^url\(#|\)$/g, '')
+    );
+
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const reference of referenced) {
+      expect(defined.has(reference)).toBe(true);
+    }
   });
 
   it('draws the whole mark, globe and sparkles', () => {
     const { container } = render(<PluginIcon />);
 
-    expect(container.querySelectorAll('path')).toHaveLength(4);
+    expect(container.querySelectorAll('path')).toHaveLength(6);
   });
 });
