@@ -4,6 +4,9 @@
 feedback commands green, tree clean, `main` level with `origin/main`, CI green on Node 20 and 22. A snapshot, not a living
 document: where it disagrees with the repo, the repo is right.*
 
+**Superseded by** `docs/handoffs/2026-09-01-qa-hosts-ready.md`, which is the current one. Its 1.1
+decisions and corrections below still stand and are not repeated there.
+
 **Supersedes** `docs/handoffs/2026-08-27-1.0-qa-pending.md`. Everything it lists as open is still
 open, and 1.1 has been built on top since.
 
