@@ -139,7 +139,7 @@ switch are load-bearing:
   `push-to-host.mjs` always passes the path; do not reinstall by hand without it.
 - **Verify by integrity hash, not timestamp.** `npm pack --json` prints the tarball's `integrity`,
   and npm records that exact string in the host's `package-lock.json` under
-  `packages["node_modules/strapi-plugin-ai-bulk-translate"]`. `npm run push` compares the two and
+  `packages["node_modules/@prismetic/strapi-plugin-ai-bulk-translate"]`. `npm run push` compares the two and
   fails if they differ. Under yalc this took a `shasum -a256` of two directories, because yalc
   preserved source mtimes and the dates lied.
 
