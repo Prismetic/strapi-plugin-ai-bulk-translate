@@ -512,8 +512,8 @@ and keys`.
 the browser — permission changes are cached in the admin panel.
 
 **`Document with id "…", locale "…" not found`.** Version 1.0.0 only. The entry links to another
-localized entry that has no version in the target locale, and the whole translation fails. Later
-versions leave the link out and say so — upgrade, or translate the linked entry first. See
+localized entry that has no version in the target locale, and the whole translation fails. From
+1.1.0 the link is left out and the run says so — upgrade, or translate the linked entry first. See
 [Links to other entries](#links-to-other-entries).
 
 **A translation succeeded but links are missing in the target locale.** Expected where the linked
