@@ -17,8 +17,9 @@ jobs:
       # Both versions report, rather than the first failure hiding the second.
       fail-fast: false
       matrix:
-        # The plugin's own floor, and the ceiling Strapi 5 hosts cap at.
-        node: ['20', '22']
+        # The two LTS lines the plugin supports. 22 is the floor because the AI SDK requires it;
+        # 24 needs a host on Strapi 5.31 or later.
+        node: ['22', '24']
 
     steps:
       - uses: actions/checkout@v4

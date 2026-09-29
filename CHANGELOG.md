@@ -4,6 +4,13 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Changed
+
+- **Node 22 is now the floor, and Node 24 is supported.** `engines` moves from `>=20` to `>=22`.
+  This states a requirement the plugin already had rather than adding one: every AI SDK package it
+  depends on declares `node >=22`, and Node 20 has reached end of life. Node 24 needs a host on
+  Strapi 5.31 or later, the first release to allow it. CI now runs on 22 and 24.
+
 ### Fixed
 
 - **A link to an untranslated entry no longer fails the whole translation.** A component is

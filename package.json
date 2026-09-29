@@ -102,6 +102,6 @@
     "description": "Bulk AI translation for Strapi v5, with admin-managed providers and models"
   },
   "engines": {
-    "node": ">=20.0.0 <=26.x.x"
+    "node": ">=22.0.0 <=26.x.x"
   }
 }
