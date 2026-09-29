@@ -6,6 +6,7 @@ import { extractFields, type ComponentSchemas, type TranslatableField } from './
 import { buildLocalePayload } from './locale-payload';
 import { decideOverwrite } from './overwrite-policy';
 import { reinject } from './path-codec';
+import { collectLinks, describeDropped, pruneLinks } from './relation-links';
 
 import type { Core } from '@strapi/strapi';
 import type { ResolvedModel } from './model-store';
@@ -42,6 +43,11 @@ export interface TranslateOutcome {
    * output from a human's edit.
    */
   targetUpdatedAt?: string | null;
+  /**
+   * Something the editor should know about a write that did happen — today, links left out
+   * because the entries they point at have no version in the target locale.
+   */
+  notice?: string;
 }
 
 /** Whatever the Content Manager's populate builder produces; passed straight back to `findOne`. */
@@ -118,6 +124,56 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
     } catch {
       return undefined;
     }
+  };
+
+  /**
+   * Which of the linked entries can actually be linked from the target locale.
+   *
+   * Strapi resolves a link against the locale being written whenever the linked content type is
+   * localized, and against the draft whenever it has draft and publish — this write is always a
+   * draft. Asking the same question first is what lets an unavailable link be left out instead of
+   * rejecting the whole document.
+   *
+   * A content type that is not localized has one version serving every locale, so all of its
+   * entries are available. So is anything this cannot look up: the write is then Strapi's to judge.
+   */
+  const availableLinks = async (
+    links: Map<string, Set<string>>,
+    targetLocale: string
+  ): Promise<Map<string, Set<string>>> => {
+    const localization = strapi.plugin('i18n').service('content-types');
+    const available = new Map<string, Set<string>>();
+
+    for (const [targetUid, documentIds] of links) {
+      const model = strapi.getModel(targetUid as never) as
+        | { options?: { draftAndPublish?: boolean } }
+        | undefined;
+
+      if (!model || !localization.isLocalizedContentType(model)) {
+        available.set(targetUid, documentIds);
+        continue;
+      }
+
+      const rows = (await strapi.db.query(targetUid).findMany({
+        where: {
+          documentId: { $in: [...documentIds] },
+          locale: targetLocale,
+          ...(model.options?.draftAndPublish ? { publishedAt: null } : {}),
+        },
+        select: ['documentId'],
+      })) as { documentId: string }[];
+
+      available.set(targetUid, new Set(rows.map((row) => row.documentId)));
+    }
+
+    return available;
+  };
+
+  /** A content type's name as the Content Manager shows it, falling back to its uid. */
+  const displayName = (uid: string): string => {
+    const model = strapi.getModel(uid as never) as { info?: { displayName?: string } } | undefined;
+
+    return model?.info?.displayName ?? uid;
   };
 
   /**
@@ -412,12 +468,22 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       const clone = reinject(source, translations);
       const touchedPaths = Object.keys(translations);
 
-      const data = buildLocalePayload({
+      const payload = buildLocalePayload({
         schema: schema as never,
         components,
         document: clone,
         touchedPaths,
       });
+
+      // A component is sent whole, so the links inside it go with it — and one pointing at an
+      // entry with no version in this locale would reject the write. See relation-links.
+      const links = { schema: schema as never, components, data: payload };
+      const available = await availableLinks(collectLinks(links), targetLocale);
+      const { data, dropped } = pruneLinks(
+        links,
+        ({ targetUid, documentId }) => available.get(targetUid)?.has(documentId) ?? true
+      );
+      const notice = describeDropped(dropped, targetLocale, displayName);
 
       // Slugs derive from the translated title, so they are regenerated after reinjection and
       // added to the payload even though no model produced them.
@@ -440,6 +506,7 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         targetPath: (path as string) ?? null,
         // Read back from what was written, so a later run compares like with like.
         targetUpdatedAt: (written?.updatedAt as string | undefined) ?? null,
+        ...(notice ? { notice } : {}),
       };
     },
   };

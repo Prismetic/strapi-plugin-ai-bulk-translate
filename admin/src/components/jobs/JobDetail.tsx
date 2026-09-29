@@ -83,6 +83,14 @@ const JobDetail = ({ id, onRetried }: { id: number; onRetried: () => void }) => 
                     </Typography>
                   ) : null}
 
+                  {/* The item was written, but not all of it: the badge stays green and this
+                      says what is missing. */}
+                  {item.notice ? (
+                    <Typography variant="pi" textColor="warning600">
+                      {item.notice}
+                    </Typography>
+                  ) : null}
+
                   {item.targetPath ? (
                     <Typography variant="pi" textColor="neutral500">
                       {item.targetPath}

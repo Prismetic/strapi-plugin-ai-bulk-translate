@@ -412,6 +412,7 @@ const TranslateModal = ({
                           {item.status}
                           {item.error ? ` — ${item.error}` : ''}
                           {item.skippedReason ? ` — ${item.skippedReason}` : ''}
+                          {item.notice ? ` — ${item.notice}` : ''}
                         </Typography>
                       </Flex>
                     ))}

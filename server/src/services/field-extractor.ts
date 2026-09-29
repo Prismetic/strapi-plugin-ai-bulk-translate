@@ -28,6 +28,9 @@ export interface ExtractorAttribute {
   repeatable?: boolean;
   /** Set on `dynamiczone` attributes. */
   components?: string[];
+  /** Set on `relation` attributes, except polymorphic ones, whose items name their own target. */
+  target?: string;
+  relation?: string;
 }
 
 export interface ExtractorSchema {

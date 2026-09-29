@@ -25,6 +25,8 @@ export interface JobItem {
   /** Why the item was not translated, in words an editor can read. */
   skippedReason?: string;
   error?: string;
+  /** Something to know about an item that was translated, such as links that were left out. */
+  notice?: string;
   /** The page path this locale was written to, where the content type has one. */
   targetPath?: string | null;
   /**

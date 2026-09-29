@@ -264,7 +264,11 @@ including inside components, repeatable components and dynamic zones, at any dep
 Three exclusions are absolute, at every depth:
 
 - **Media** — images are re-linked, never re-uploaded or detached.
-- **Relations** — links between entries survive intact.
+- **Relations** — links between entries survive intact, with one exception Strapi imposes: a link
+  to a localized entry can only be made to that entry's version in the same locale. Where the
+  linked entry has no version in the target locale yet, the link is left out of the translation
+  and the run says so, naming the content types involved. Translate those entries, then add the
+  link in the target locale. The source locale is never changed.
 - **Identifier fields (`uid`)** — a slug derived from another field is *regenerated* from the
   translated title rather than translated as prose, so URLs stay well-formed. A free-standing `uid`
   with no target field is left alone, because inventing a new value would change a URL nobody asked

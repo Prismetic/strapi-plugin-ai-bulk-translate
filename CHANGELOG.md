@@ -2,6 +2,17 @@
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- **A link to an untranslated entry no longer fails the whole translation.** A component is
+  written whole, so the links inside it go with it, and Strapi rejects a write at a target locale
+  when a linked localized entry has no version there (`Document with id "…", locale "…" not
+  found`). Such links are now left out, as Strapi's own "fill in from another locale" does, and
+  the item carries a notice naming what was left out. Links to entries that do exist in the
+  target locale, and to content types that are not localized, are carried across as before.
+
 ## 1.0.0
 
 First public release. Bulk AI translation for Strapi 5, with providers and models managed from the
