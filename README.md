@@ -426,7 +426,11 @@ them; *Restore defaults* clears that override and hands control back to this fil
 **Translated:** `string`, `text`, `richtext`, and the prose inside `blocks` and `json` fields —
 including inside components, repeatable components and dynamic zones, at any depth.
 
-**Carried across untouched:** everything else.
+**Carried across untouched:** everything else. When a locale is created, every per-locale field
+the source has — images, numbers, dates, switches, links — goes with it, as Strapi's own "fill in
+from another locale" would. When the locale already exists, only its empty fields are filled in;
+a value an editor set there is kept. Fields shared across locales are left to Strapi, which copies
+them itself.
 
 Three exclusions are absolute, at every depth:
 
@@ -520,6 +524,14 @@ localized entry that has no version in the target locale, and the whole translat
 **A translation succeeded but links are missing in the target locale.** Expected where the linked
 entries have not been translated; the item's notice names them. See
 [Links to other entries](#links-to-other-entries).
+
+**A translated entry has no image, no priority order, or a wrong date.** Versions up to 1.1.0
+sent only the translated text, and left localized fields of other types empty in a new locale.
+From 1.2.0 they are carried across. To repair an entry translated earlier, run the translation
+again with overwrite ticked: only what is missing or still at its schema default is filled in.
+
+**The dialog shows "What will happen" with nothing under it.** Version 1.1.0 and earlier, on a
+single type. Upgrade.
 
 **A monitored entry was published and nothing was translated.** Look under [Jobs](#jobs) with
 *Show skipped* on. A skipped run means nothing translatable changed, or the target already has

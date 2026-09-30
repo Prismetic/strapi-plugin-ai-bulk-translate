@@ -2,6 +2,35 @@
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- **A new locale now carries every field the source has, not just the translated ones.** A
+  translation wrote only its text, on the assumption that Strapi would fill the rest; that is true
+  of fields shared across locales and false of localized ones. On a content type where every field
+  is localized — as strapi#27182 requires — the new locale came back with no image, no priority
+  order and the default publication date. Every per-locale field the target has no value for is
+  now carried across from the source, as Strapi's own "fill in from another locale" does. A field
+  the target already holds a value for is left alone, so re-running with overwrite fills what is
+  missing without touching what an editor set. The schema default counts as missing, so rows an
+  earlier version left dated `2025-01-01` are repaired by a re-run.
+- **A title slugify cannot transliterate no longer produces an empty slug.** Chinese, Japanese and
+  Korean titles slugified to nothing, and Strapi's uniqueness step then produced `-1`, `-2`, … .
+  When the regenerated slug is empty, the source locale's slug is used instead; identifiers are
+  unique per locale, so the two locales sharing one is allowed. A title with Latin fragments keeps
+  its regenerated slug. A target locale that already has a slug keeps it on a re-run: the words
+  change, the address does not.
+- **The dialog now previews a single type.** Its edit view has no identifier in the route, and the
+  preview was never requested for it: the heading rendered with nothing under it and Translate
+  stayed enabled with no summary. The preview route now resolves the single type's document the
+  way the run already did, through one shared resolver, and refuses with the same message when
+  nothing is saved in the source locale. A single type is named by its content type in the
+  preview and in run history, rather than by its document id.
+- **Translate is disabled until the preview has answered.** An empty answer used to be mistaken
+  for a pending one, which is what left the button live; a failed preview did too. The dialog now
+  tracks whether the preview loaded, and blocks on an empty or failed one.
+
 ## 1.1.0
 
 ### Changed
