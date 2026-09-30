@@ -1,0 +1,115 @@
+# Publishing a GitHub Release publishes that version to npm.
+#
+# The release is the trigger, not the source of truth: package.json holds the version, and this
+# workflow refuses to publish if the tag disagrees with it. That keeps the version in one place —
+# the `Release x.y.z` commit — rather than letting a mistyped tag mint a version nobody reviewed.
+#
+# There is no npm token. Authentication is npm Trusted Publishing: the job presents a short-lived
+# GitHub OIDC token, and npm checks it against a publisher configured on the package. Two things
+# make that work and both are load-bearing:
+#
+#   - `id-token: write` below, which is what lets the runner mint the OIDC token at all.
+#   - The trusted publisher on npmjs.com naming this file, `release.yml`, exactly. Renaming this
+#     file breaks publishing until the publisher on npmjs.com is renamed to match.
+#
+# No `--provenance` flag appears below, deliberately. npm attaches build provenance automatically
+# when both the package and the repository are public; this repository is internal, so there is no
+# public source for a provenance statement to point at and none is produced. If the repository is
+# ever made public, provenance starts appearing on its own — nothing here needs changing. If a
+# publish ever fails trying to generate one, `provenance=false` in .npmrc is the escape hatch.
+name: Release
+
+on:
+  release:
+    types: [published]
+
+# Two releases published back to back should not race each other to the registry.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # Trusted Publishing. Without this the OIDC exchange fails with an auth error that reads
+      # like a missing token.
+      id-token: write
+
+    steps:
+      # A release event checks out the tag the release points at, not the branch head, so what is
+      # published is exactly what was tagged.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 24 rather than the 22 floor: Trusted Publishing needs npm 11.5.1+, and 24 is the line
+          # that ships an 11.x npm. The plugin itself still supports 22 — that is what checks.yml
+          # tests; this job only builds the tarball.
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      # Pinning the floor rather than trusting whatever npm the Node image happened to bundle.
+      # Below 11.5.1 there is no OIDC support and `npm publish` falls back to asking for a token.
+      - name: Ensure npm supports Trusted Publishing
+        run: |
+          npm install -g npm@latest
+          npm --version
+
+      - run: npm ci
+
+      # The same checks as CI, run again against the tagged tree. CI passing on main is not proof
+      # about the tag: a tag can be moved, or cut from a commit main has since left behind.
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # The tag is how a human names the release; package.json is what npm will actually publish.
+      # If they disagree, the release notes describe a version the registry will never see, so stop
+      # rather than publish the mismatch.
+      #
+      # The name is checked as well as the version, because a tag can point anywhere in history —
+      # including before 57f206e, where the package was still unscoped. A release cut from there
+      # would otherwise look like a brand new unpublished package rather than an old version of
+      # this one. This workflow publishes one package and nothing else.
+      - name: Check the tag matches package.json
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$name" != "@prismetic/strapi-plugin-ai-bulk-translate" ]; then
+            echo "::error::Tag '$tag' points at a commit whose package name is '$name', not @prismetic/strapi-plugin-ai-bulk-translate."
+            exit 1
+          fi
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::Release tag '$tag' does not match package.json version '$version'."
+            echo "::error::Expected the tag to be 'v$version'. Fix the tag, or bump package.json and re-cut the release."
+            exit 1
+          fi
+          echo "Publishing $name@$version."
+
+      # Makes the workflow safe to re-run, and safe to point at a release cut for a version that
+      # was published by hand before this workflow existed. npm rejects republishing a version, so
+      # without this check a backfilled release shows up as a failed run for no useful reason.
+      - name: Skip if this version is already on the registry
+        id: published
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already published. Nothing to do."
+            echo "already=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # `prepublishOnly` runs the build, and `postbuild` runs the ESM boundary assertion — the one
+      # check that inspects what actually ships. So the tarball is built here, not earlier, and a
+      # static import of the AI SDK fails the publish rather than reaching a host.
+      - name: Publish
+        if: steps.published.outputs.already == 'false'
+        run: npm publish
