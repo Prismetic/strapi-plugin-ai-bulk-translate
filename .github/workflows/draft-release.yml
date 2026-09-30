@@ -1,0 +1,96 @@
+# Opens a draft GitHub Release for whatever version package.json currently names, with the notes
+# taken from that version's CHANGELOG.md section.
+#
+# This does not publish anything. It stops at a draft on purpose: publishing the draft is what
+# triggers release.yml, and therefore what publishes to npm, so a human reads the notes and clicks
+# Publish. The automation does the transcription, which is the part worth automating; the decision
+# stays where it was.
+#
+# The release flow end to end:
+#
+#   1. Commit the version bump and the changelog section (`Release x.y.z`).
+#   2. Run this workflow. It drafts the release.
+#   3. Read the draft. Publish it.
+#   4. release.yml publishes to npm.
+#
+# Nothing here needs npm credentials — it only reads the repository and writes a draft.
+name: Draft release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: draft-release
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    name: Draft the release
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Creating a release, even a draft one, is a write.
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # No `npm ci`. The extraction script has no dependencies, deliberately, so this workflow
+      # stays a few seconds rather than a few minutes.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Read the version
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "Drafting v$version."
+
+      # A tag that already exists means this version was already released, which almost always means
+      # package.json was never bumped. Stopping here is friendlier than letting `gh release create`
+      # fail further down with a less specific message.
+      - name: Check the tag is free
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Tag $tag already exists. Bump the version in package.json first."
+            exit 1
+          fi
+
+      # Fails if there is no section for this version, or the heading is there with nothing under
+      # it — either way the notes would otherwise come out blank.
+      - name: Take the notes from the changelog
+        run: node scripts/changelog-section.mjs "${{ steps.version.outputs.version }}" > RELEASE_NOTES.md
+
+      # A warning rather than a failure: it is how you find out the bump was forgotten, but
+      # re-drafting a release for a version already on the registry is occasionally what you want,
+      # and release.yml skips the publish in that case anyway.
+      - name: Warn if this version is already on npm
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          version="${{ steps.version.outputs.version }}"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::warning::$name@$version is already on the registry. Publishing this release will not republish it."
+          fi
+
+      # `--target` pins the tag to the commit this workflow ran against, not to whatever main points
+      # at when someone gets round to publishing the draft. The tag itself is not created until the
+      # draft is published, so an abandoned draft leaves no tag behind.
+      - name: Create the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          url="$(gh release create "${{ steps.version.outputs.tag }}" \
+            --draft \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.version.outputs.version }}" \
+            --notes-file RELEASE_NOTES.md)"
+          echo "Draft: $url"
+          {
+            echo "### Draft release ${{ steps.version.outputs.version }} is ready"
+            echo
+            echo "[Review and publish it]($url). Publishing is what releases to npm."
+          } >> "$GITHUB_STEP_SUMMARY"
