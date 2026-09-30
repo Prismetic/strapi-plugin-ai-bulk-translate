@@ -31,6 +31,11 @@ export interface ExtractorAttribute {
   /** Set on `relation` attributes, except polymorphic ones, whose items name their own target. */
   target?: string;
   relation?: string;
+  /** Strapi's own flags on system attributes such as `createdBy`; absent on content fields. */
+  private?: boolean;
+  writable?: boolean;
+  /** The schema default, applied by Strapi to a row created without a value for the field. */
+  default?: unknown;
 }
 
 export interface ExtractorSchema {

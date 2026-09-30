@@ -176,3 +176,204 @@ describe('buildLocalePayload', () => {
     expect(document.Header.id).toBe(4);
   });
 });
+
+/**
+ * The gap the `target` option closes. Everything on this schema is localized, as it must be on a
+ * host affected by strapi#27182 — so nothing here is shared, and nothing is filled by i18n.
+ */
+const localizedSchema: ExtractorSchema = {
+  attributes: {
+    Title: { type: 'string', pluginOptions: { i18n: { localized: true } } },
+    Slug: { type: 'uid', pluginOptions: { i18n: { localized: true } } },
+    Image: { type: 'media', pluginOptions: { i18n: { localized: true } } },
+    PriorityOrder: { type: 'integer', pluginOptions: { i18n: { localized: true } } },
+    PublishedDate: { type: 'datetime', pluginOptions: { i18n: { localized: true } } },
+    ShowInSlider: { type: 'boolean', pluginOptions: { i18n: { localized: true } } },
+    Tags: { type: 'relation', relation: 'manyToMany', target: 'api::tag.tag' },
+    Header: {
+      type: 'component',
+      component: 'utils.image-text',
+      pluginOptions: { i18n: { localized: true } },
+    },
+    Shared: { type: 'string' },
+    Secret: { type: 'password', pluginOptions: { i18n: { localized: true } } },
+    createdAt: { type: 'datetime' },
+    updatedAt: { type: 'datetime' },
+    publishedAt: { type: 'datetime' },
+    createdBy: { type: 'relation', relation: 'oneToOne', target: 'admin::user', private: true },
+    locale: { type: 'string' },
+    localizations: { type: 'relation', relation: 'oneToMany', target: 'api::x.x' },
+  },
+};
+
+const source = {
+  id: 1,
+  documentId: 'doc-a',
+  Title: 'Muebles',
+  Slug: 'furniture',
+  Image: { id: 9, url: '/a.jpg' },
+  PriorityOrder: 15,
+  PublishedDate: '2025-09-29T03:30:00.000Z',
+  ShowInSlider: false,
+  Tags: [{ id: 3, documentId: 'tag-a' }],
+  Header: { id: 4, Text: 'Hola', Image: { id: 10 } },
+  Shared: 'same everywhere',
+  Secret: 'hash',
+  createdAt: '2025-01-01T00:00:00.000Z',
+  updatedAt: '2025-01-02T00:00:00.000Z',
+  publishedAt: '2025-01-03T00:00:00.000Z',
+  createdBy: { id: 1, documentId: 'admin-a' },
+  locale: 'en',
+  localizations: [],
+};
+
+describe('buildLocalePayload with a target locale', () => {
+  it('carries every per-locale field a new locale would otherwise lack', () => {
+    const payload = buildLocalePayload({
+      schema: localizedSchema,
+      components,
+      document: source,
+      touchedPaths: ['Title'],
+      target: null,
+    });
+
+    expect(payload).toEqual({
+      Title: 'Muebles',
+      Image: { id: 9, url: '/a.jpg' },
+      PriorityOrder: 15,
+      PublishedDate: '2025-09-29T03:30:00.000Z',
+      ShowInSlider: false,
+      Tags: [{ id: 3, documentId: 'tag-a' }],
+      Header: { Text: 'Hola', Image: { id: 10 } },
+    });
+  });
+
+  /** A slug is regenerated from the translated title, not copied; copying would undo that. */
+  it('never carries identifiers, secrets, shared fields or what Strapi manages itself', () => {
+    const payload = buildLocalePayload({
+      schema: localizedSchema,
+      components,
+      document: source,
+      touchedPaths: [],
+      target: null,
+    });
+
+    for (const name of [
+      'Slug',
+      'Secret',
+      'Shared',
+      'id',
+      'documentId',
+      'locale',
+      'localizations',
+      'createdAt',
+      'updatedAt',
+      'publishedAt',
+      'createdBy',
+    ]) {
+      expect(name in payload, name).toBe(false);
+    }
+  });
+
+  /** Carrying fills gaps. An image the editor chose for this locale is theirs to keep. */
+  it('leaves alone what the existing target already has a value for', () => {
+    const payload = buildLocalePayload({
+      schema: localizedSchema,
+      components,
+      document: source,
+      touchedPaths: ['Title'],
+      target: {
+        Title: 'Old',
+        Image: { id: 99 },
+        PriorityOrder: 2,
+        PublishedDate: null,
+        ShowInSlider: true,
+        Tags: [],
+        Header: null,
+      },
+    });
+
+    expect(payload).toEqual({
+      Title: 'Muebles',
+      PublishedDate: '2025-09-29T03:30:00.000Z',
+      Tags: [{ id: 3, documentId: 'tag-a' }],
+      Header: { Text: 'Hola', Image: { id: 10 } },
+    });
+  });
+
+  /**
+   * The row a 1.1.0 translation left behind: never sent a date, so Strapi applied the default.
+   * By the value alone that is a real date; by the schema it is the absence of one.
+   */
+  it('treats the schema default as no value, so a defaulted row is repaired', () => {
+    const withDefaults: ExtractorSchema = {
+      attributes: {
+        PublishedDate: {
+          type: 'datetime',
+          default: '2025-01-01T03:30:00.000Z',
+          pluginOptions: { i18n: { localized: true } },
+        },
+        ShowInSlider: {
+          type: 'boolean',
+          default: true,
+          pluginOptions: { i18n: { localized: true } },
+        },
+      },
+    };
+
+    const payload = buildLocalePayload({
+      schema: withDefaults,
+      components,
+      document: { PublishedDate: '2025-09-29T03:30:00.000Z', ShowInSlider: false },
+      touchedPaths: [],
+      target: { PublishedDate: '2025-01-01T03:30:00.000Z', ShowInSlider: true },
+    });
+
+    expect(payload).toEqual({ PublishedDate: '2025-09-29T03:30:00.000Z', ShowInSlider: false });
+  });
+
+  it('keeps a target value that differs from the default', () => {
+    const withDefaults: ExtractorSchema = {
+      attributes: {
+        PublishedDate: {
+          type: 'datetime',
+          default: '2025-01-01T03:30:00.000Z',
+          pluginOptions: { i18n: { localized: true } },
+        },
+      },
+    };
+
+    const payload = buildLocalePayload({
+      schema: withDefaults,
+      components,
+      document: { PublishedDate: '2025-09-29T03:30:00.000Z' },
+      touchedPaths: [],
+      target: { PublishedDate: '2026-02-02T00:00:00.000Z' },
+    });
+
+    expect(payload).toEqual({});
+  });
+
+  it('treats an empty string and an empty list as no value', () => {
+    const payload = buildLocalePayload({
+      schema: localizedSchema,
+      components,
+      document: { Title: 'Muebles', Tags: [{ id: 3, documentId: 'tag-a' }] },
+      touchedPaths: [],
+      target: { Title: '', Tags: [] },
+    });
+
+    expect(payload).toEqual({ Title: 'Muebles', Tags: [{ id: 3, documentId: 'tag-a' }] });
+  });
+
+  it('sends only touched roots when no target is given, as before', () => {
+    const payload = buildLocalePayload({
+      schema: localizedSchema,
+      components,
+      document: source,
+      touchedPaths: ['Title'],
+    });
+
+    expect(payload).toEqual({ Title: 'Muebles' });
+  });
+});

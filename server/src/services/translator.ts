@@ -146,8 +146,7 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
 
     for (const [targetUid, documentIds] of links) {
       const model = strapi.getModel(targetUid as never) as
-        | { options?: { draftAndPublish?: boolean } }
-        | undefined;
+        { options?: { draftAndPublish?: boolean } } | undefined;
 
       if (!model || !localization.isLocalizedContentType(model)) {
         available.set(targetUid, documentIds);
@@ -468,11 +467,14 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       const clone = reinject(source, translations);
       const touchedPaths = Object.keys(translations);
 
+      // `existing` doubles as the target: a locale that does not exist yet gets every per-locale
+      // field carried across, one that does gets only the gaps filled. See locale-payload.
       const payload = buildLocalePayload({
         schema: schema as never,
         components,
         document: clone,
         touchedPaths,
+        target: existing,
       });
 
       // A component is sent whole, so the links inside it go with it — and one pointing at an
