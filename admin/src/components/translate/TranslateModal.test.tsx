@@ -44,14 +44,21 @@ vi.mock('../../hooks/useModels', () => ({
   }),
 }));
 
+const localeStatusCalls: unknown[][] = [];
+
 vi.mock('../../hooks/useLocaleStatus', () => ({
-  useLocaleStatus: () => ({
-    rows: [],
-    isLoading: false,
-    error: null,
-    excluded: [],
-    translatable: [],
-  }),
+  useLocaleStatus: (...args: unknown[]) => {
+    localeStatusCalls.push(args);
+
+    return {
+      rows: [],
+      isLoading: false,
+      loaded: false,
+      error: null,
+      excluded: [],
+      translatable: [],
+    };
+  },
 }));
 
 vi.mock('../../hooks/useTranslationJob', () => ({
@@ -73,12 +80,16 @@ vi.mock('@strapi/strapi/admin', () => ({
 
 const { TranslateModal } = await import('./TranslateModal');
 
-const open = (sourceLocale: string) =>
+const open = (
+  sourceLocale: string,
+  props: { documentIds?: string[]; isSingleType?: boolean } = {}
+) =>
   render(
     <TranslateModal
       contentType="api::article.article"
-      documentIds={['abc123']}
+      documentIds={props.documentIds ?? ['abc123']}
       sourceLocale={sourceLocale}
+      isSingleType={props.isSingleType}
       onClose={vi.fn()}
     />
   );
@@ -91,6 +102,7 @@ const offered = (code: string) =>
   screen.queryByRole('checkbox', { name: new RegExp(`\\(${code}\\)`) });
 
 beforeEach(() => {
+  localeStatusCalls.length = 0;
   hooks.locales = [
     { code: 'en', name: 'English (en)', isDefault: true },
     { code: 'ar', name: 'Arabic (ar)', isDefault: false },
@@ -140,5 +152,29 @@ describe('TranslateModal target locales', () => {
     expect(
       screen.getByText(/no other locale|nothing to translate into|at least one locale/i)
     ).toBeTruthy();
+  });
+});
+
+describe('TranslateModal preview', () => {
+  /** A single type sends no identifier, and the preview must still be asked for. */
+  it('tells the preview the server resolves the entry, for a single type', () => {
+    open('en', { documentIds: [], isSingleType: true });
+
+    expect(localeStatusCalls.at(-1)?.[4]).toEqual({ resolvesEntryServerSide: true });
+  });
+
+  it('does not claim that for a collection type', () => {
+    open('en');
+
+    expect(localeStatusCalls.at(-1)?.[4]).toEqual({ resolvesEntryServerSide: false });
+  });
+
+  /** Nothing has been shown about what the run would do, so it must not be offered. */
+  it('keeps Translate disabled while the preview has not answered', () => {
+    open('en');
+
+    expect((screen.getByRole('button', { name: 'Translate' }) as HTMLButtonElement).disabled).toBe(
+      true
+    );
   });
 });

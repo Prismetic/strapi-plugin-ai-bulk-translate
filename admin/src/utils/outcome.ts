@@ -62,6 +62,15 @@ export interface OutcomeInput {
    */
   hasUsableModel?: boolean;
   /**
+   * Whether `rows` is the preview's answer, as opposed to nothing having come back yet.
+   *
+   * Optional and assumed `true`, for the same reason as `hasUsableModel`: an answer that is
+   * genuinely empty must block, and only a caller that knows the preview is still pending — or
+   * was never made, or failed — should say so. Inferring "pending" from an empty list is what let
+   * a single type, whose preview was never requested, keep its confirm button live.
+   */
+  previewLoaded?: boolean;
+  /**
    * Whether this run will actually resolve a model — either the editor chose one, or a usable
    * default exists for the server to fall back to.
    *
@@ -78,6 +87,7 @@ export const resolveOutcome = ({
   targetLocales,
   authorised,
   hasUsableModel = true,
+  previewLoaded = true,
   modelResolves = true,
 }: OutcomeInput): Outcome => {
   const included = rows.filter((row) => !row.excluded);
@@ -131,8 +141,9 @@ export const resolveOutcome = ({
     }
 
     // Nothing has come back from the preview yet, so there is nothing to judge. Disabling here
-    // would flicker the button off between choosing a locale and the check returning.
-    if (rows.length === 0) {
+    // would flicker the button off between choosing a locale and the check returning. The caller
+    // says so explicitly; an empty answer is an answer, and blocks below.
+    if (!previewLoaded) {
       return null;
     }
 

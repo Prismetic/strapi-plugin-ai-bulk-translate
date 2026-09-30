@@ -97,6 +97,7 @@ const TranslateEditViewButton = ({ slug }: InjectedProps) => {
             contentType={model}
             documentIds={documentIds}
             sourceLocale={sourceLocale as string}
+            isSingleType={isSingleType}
             onClose={() => setOpen(false)}
           />
         ) : null}

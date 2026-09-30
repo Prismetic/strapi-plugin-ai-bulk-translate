@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { uidFieldOf } from './entry-identity';
+import { fallbackTitle, uidFieldOf } from './entry-identity';
 
 const schema = (attributes: Record<string, { type: string; targetField?: string }>) =>
   ({ attributes }) as never;
@@ -22,5 +22,27 @@ describe('uidFieldOf', () => {
   it('survives a schema with no attributes at all', () => {
     expect(uidFieldOf(schema({}))).toBeNull();
     expect(uidFieldOf(undefined as never)).toBeNull();
+  });
+});
+
+describe('fallbackTitle', () => {
+  /** The preview showed `e5e8ckg9xx3wvglzkln1uy1h` for a homepage. Nobody calls it that. */
+  it('names a single type by its content type', () => {
+    expect(
+      fallbackTitle(
+        { kind: 'singleType', info: { displayName: 'MosBuild_Homepage' } } as never,
+        'e5e8ckg9xx3wvglzkln1uy1h'
+      )
+    ).toBe('MosBuild_Homepage');
+  });
+
+  it('names a collection-type entry by its identifier', () => {
+    expect(
+      fallbackTitle({ kind: 'collectionType', info: { displayName: 'Article' } } as never, 'abc')
+    ).toBe('abc');
+  });
+
+  it('has something to say even with no schema and no identifier', () => {
+    expect(fallbackTitle(undefined, undefined)).toBe('Untitled');
   });
 });

@@ -16,8 +16,23 @@ export interface JobDocument {
 }
 
 interface SchemaLike {
+  kind?: string;
+  info?: { displayName?: string };
   attributes?: Record<string, { type?: string }>;
 }
+
+/**
+ * What to call an entry that has no title of its own.
+ *
+ * A single type is the only entry of its kind, and its edit view names it by the content type —
+ * so the preview and the run history do the same, rather than showing an identifier nobody has
+ * seen anywhere else. A collection-type entry without a title falls back to its identifier: an
+ * opaque one is still better than nothing to correlate against.
+ */
+export const fallbackTitle = (schema: SchemaLike | undefined, documentId: unknown): string =>
+  schema?.kind === 'singleType' && schema.info?.displayName
+    ? schema.info.displayName
+    : String(documentId ?? 'Untitled');
 
 /** The attribute a page path lives in, if the content type has one. Pure, so it is testable. */
 export const uidFieldOf = (schema: SchemaLike | undefined): string | null =>
@@ -36,8 +51,9 @@ export const titleOf = async (
   contentType: string,
   document: Record<string, unknown>
 ): Promise<string> => {
+  const schema = strapiInstance.contentType(contentType as never) as SchemaLike | undefined;
+
   try {
-    const schema = strapiInstance.contentType(contentType as never);
     const configuration = await strapiInstance
       .plugin('content-manager')
       .service('content-types')
@@ -53,7 +69,7 @@ export const titleOf = async (
     // A content type with no configuration still has entries worth naming by identifier.
   }
 
-  return String(document.documentId ?? 'Untitled');
+  return fallbackTitle(schema, document.documentId);
 };
 
 /**

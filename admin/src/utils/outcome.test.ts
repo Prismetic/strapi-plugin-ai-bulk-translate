@@ -202,10 +202,27 @@ describe('resolveOutcome — the empty-work guard', () => {
    * button for the moment between choosing a locale and the check returning, which reads as broken.
    */
   it('does not block while the preview has not returned yet', () => {
-    const outcome = resolveOutcome({ rows: [], targetLocales: ['de'], authorised: [] });
+    const outcome = resolveOutcome({
+      rows: [],
+      targetLocales: ['de'],
+      authorised: [],
+      previewLoaded: false,
+    });
 
     expect(outcome.hasWork).toBe(true);
     expect(outcome.blockedReason).toBeNull();
+  });
+
+  /**
+   * The single-type defect. Its preview was never requested, so rows stayed empty forever, and
+   * an empty list was read as "still loading" — a live button with nothing above it explaining
+   * what it would do. An empty answer is an answer.
+   */
+  it('blocks on an empty answer, rather than mistaking it for a pending one', () => {
+    const outcome = resolveOutcome({ rows: [], targetLocales: ['de'], authorised: [] });
+
+    expect(outcome.hasWork).toBe(false);
+    expect(outcome.blockedReason).toBe('nothing-in-source');
   });
 });
 

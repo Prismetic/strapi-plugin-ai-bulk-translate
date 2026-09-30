@@ -27,8 +27,10 @@ import { ModelPicker, preselectedModelId, selectableModels } from './ModelPicker
 
 interface TranslateModalProps {
   contentType: string;
+  /** Empty for a single type, whose one document the server finds itself. */
   documentIds: string[];
   sourceLocale: string;
+  isSingleType?: boolean;
   /** Which surface opened this. Recorded on the job for audit; grants nothing. */
   origin?: 'document' | 'bulk';
   onClose: () => void;
@@ -56,6 +58,7 @@ const TranslateModal = ({
   contentType,
   documentIds,
   sourceLocale,
+  isSingleType = false,
   origin = 'document',
   onClose,
 }: TranslateModalProps) => {
@@ -92,13 +95,17 @@ const TranslateModal = ({
 
   // Nothing is fetched until a target is chosen — the preview has nothing to say before then, and
   // asking the server to read every selected document for no locales is pure waste.
-  const preview = useLocaleStatus(contentType, documentIds, sourceLocale, selected);
+  const preview = useLocaleStatus(contentType, documentIds, sourceLocale, selected, {
+    resolvesEntryServerSide: isSingleType,
+  });
 
   const outcome = resolveOutcome({
     rows: preview.rows,
     targetLocales: selected,
     authorised,
     hasUsableModel,
+    // Pending until the server answers — and a preview that failed never answered.
+    previewLoaded: preview.loaded,
     modelResolves,
   });
 
@@ -322,9 +329,7 @@ const TranslateModal = ({
                       the last thing read is what will happen rather than a count of rows. */}
                   {/* Also shown when no model is usable, even with no preview rows yet — otherwise
                       the button is disabled with nothing above it saying why. */}
-                  {(!preview.isLoading && preview.rows.length > 0) ||
-                  !hasUsableModel ||
-                  !modelResolves ? (
+                  {(!preview.isLoading && preview.loaded) || !hasUsableModel || !modelResolves ? (
                     <Box
                       padding={3}
                       hasRadius
@@ -438,8 +443,9 @@ const TranslateModal = ({
           <Button
             loading={isStarting}
             // Disabled whenever the run would do nothing — the body says why, so this is never a
-            // dead button with no explanation.
-            disabled={!outcome.hasWork || preview.isLoading}
+            // dead button with no explanation. Also while the preview is pending or has failed:
+            // a run whose effect could not be shown is not one to offer.
+            disabled={!outcome.hasWork || preview.isLoading || !preview.loaded}
             onClick={submit}
           >
             {formatMessage({

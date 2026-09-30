@@ -3,6 +3,7 @@ import { jobListQuerySchema } from '../validation/job-list';
 import { formatZodError } from '../validation/provider';
 import { defaultLocaleCode } from '../services/default-locale';
 import { identifyDocuments } from '../services/entry-identity';
+import { resolveEntrySelection } from '../services/entry-selection';
 import { rejectTargetLocales } from '../validation/target-locales';
 
 import type { Context } from 'koa';
@@ -32,44 +33,16 @@ const jobController = {
     }
 
     const input = parsed.data;
-    const schema = strapi.contentType(input.contentType as never);
 
-    if (!schema) {
-      return badRequest(ctx, `Unknown content type "${input.contentType}".`);
+    // Shared with the preview route, so what the dialog was shown and what the run does are
+    // decided by the same code — including which single-type document "no identifier" means.
+    const selection = await resolveEntrySelection(strapi, input);
+
+    if ('refusal' in selection) {
+      return badRequest(ctx, selection.refusal);
     }
 
-    const i18nOptions = schema.pluginOptions as { i18n?: { localized?: boolean } } | undefined;
-
-    if (i18nOptions?.i18n?.localized !== true) {
-      return badRequest(
-        ctx,
-        `"${input.contentType}" does not have internationalization enabled, so it cannot be translated.`
-      );
-    }
-
-    // A single type has exactly one document, so the plugin finds it rather than trusting the
-    // admin to have read an identifier off the route. Its edit view has no identifier to read.
-    let documentIds = input.documentIds ?? [];
-
-    if (documentIds.length === 0) {
-      if (schema.kind !== 'singleType') {
-        return badRequest(ctx, 'Choose at least one entry.');
-      }
-
-      const resolved = await plugin()
-        .service('translator')
-        .resolveSingleTypeDocumentId(input.contentType, input.sourceLocale);
-
-      if (!resolved) {
-        return badRequest(
-          ctx,
-          `"${input.contentType}" has nothing saved in ${input.sourceLocale} yet, so there is ` +
-            `nothing to translate.`
-        );
-      }
-
-      documentIds = [resolved];
-    }
+    const { documentIds } = selection;
 
     // Guarded server-side, so a mis-click or a crafted request cannot trigger an enormous bill.
     const cap = strapi.config.get('plugin::ai-bulk-translate.maxDocumentsPerRun') as number;
