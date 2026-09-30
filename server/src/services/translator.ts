@@ -64,7 +64,35 @@ interface UidService {
     data: Record<string, unknown>;
     locale: string;
   }) => Promise<string>;
+  findUniqueUID: (input: {
+    contentTypeUID: string;
+    field: string;
+    value: string;
+    locale: string;
+  }) => Promise<string>;
 }
+
+/**
+ * Whether a generated identifier carries nothing of the title it came from.
+ *
+ * Strapi slugifies with `@sindresorhus/slugify`, which transliterates Cyrillic and accented Latin
+ * but simply drops Chinese, Japanese and Korean. A title in those scripts slugifies to the empty
+ * string, and an empty string collides with every other empty string, so the uniqueness step then
+ * hands back `-1`, `-2`, … — a suffix on nothing. Both shapes are recognised here.
+ */
+export const isEmptyUid = (value: string): boolean => value === '' || /^-\d+$/.test(value);
+
+/**
+ * Whether a target locale's identifier should be regenerated, given what it holds now.
+ *
+ * An identifier is a URL, and a URL that already exists is one somebody may have linked to. So it
+ * is regenerated only where the target has none worth keeping: no value, or the empty-slug
+ * shapes an earlier version produced. Re-running a translation with overwrite changes the words,
+ * not the address — and, as it happens, regenerating against a locale that already holds the
+ * same slug would only produce it again with a `-1` on the end.
+ */
+export const shouldRegenerateUid = (current: unknown): boolean =>
+  typeof current !== 'string' || isEmptyUid(current);
 
 /**
  * Model keys are synthetic (`f0`, `f1`, …) rather than the field paths themselves.
@@ -187,7 +215,8 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
     contentType: string,
     schema: { attributes: Record<string, { type: string; targetField?: string }> },
     translatedDocument: Record<string, unknown>,
-    targetLocale: string
+    targetLocale: string,
+    existing: Record<string, unknown> | null
   ): Promise<Record<string, string>> => {
     const uidService = strapi.service('plugin::content-manager.uid') as unknown as UidService;
 
@@ -205,6 +234,10 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
         continue;
       }
 
+      if (!shouldRegenerateUid(existing?.[name])) {
+        continue;
+      }
+
       const target = translatedDocument[attribute.targetField];
 
       if (typeof target !== 'string' || target.trim() === '') {
@@ -212,12 +245,29 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
       }
 
       try {
-        regenerated[name] = await uidService.generateUIDField({
+        const generated = await uidService.generateUIDField({
           contentTypeUID: contentType,
           field: name,
           data: translatedDocument,
           locale: targetLocale,
         });
+
+        // The translated document is a clone of the source, so its identifier is the source
+        // locale's. When the translated title yields nothing — see isEmptyUid — that is the best
+        // available value: it is at least a real path, and identifiers are unique per locale, so
+        // sharing one with the source locale is allowed. It still goes through the uniqueness
+        // check, in case the target locale already holds it.
+        const sourceUid = translatedDocument[name];
+
+        regenerated[name] =
+          isEmptyUid(generated) && typeof sourceUid === 'string' && !isEmptyUid(sourceUid)
+            ? await uidService.findUniqueUID({
+                contentTypeUID: contentType,
+                field: name,
+                value: sourceUid,
+                locale: targetLocale,
+              })
+            : generated;
       } catch (error) {
         // A slug that cannot be generated is not worth losing a whole translation over; the locale
         // keeps whatever Strapi derives on write.
@@ -489,7 +539,13 @@ const translator = ({ strapi }: { strapi: Core.Strapi }) => {
 
       // Slugs derive from the translated title, so they are regenerated after reinjection and
       // added to the payload even though no model produced them.
-      const uids = await regenerateUids(contentType, schema as never, clone, targetLocale);
+      const uids = await regenerateUids(
+        contentType,
+        schema as never,
+        clone,
+        targetLocale,
+        existing
+      );
 
       const written = (await documents.update({
         documentId,
