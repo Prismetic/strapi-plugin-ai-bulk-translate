@@ -32,6 +32,7 @@ it should.
 - [What gets translated](#what-gets-translated)
 - [What this plugin deliberately does not do](#what-this-plugin-deliberately-does-not-do)
 - [Troubleshooting](#troubleshooting)
+- [Releasing](#releasing) — maintainers only
 
 ---
 
@@ -533,6 +534,13 @@ the `/v1` segment for you; a URL ending in `/openai/deployments/...` is too spec
 
 **"This run covers N entries, above the limit of 100."** Select fewer entries, or raise
 `maxDocumentsPerRun`.
+
+---
+
+## Releasing
+
+For maintainers, not for using the plugin: [docs/RELEASING.md](docs/RELEASING.md) covers how a
+change in `main` becomes a version on npm.
 
 ---
 
