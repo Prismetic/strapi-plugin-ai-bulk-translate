@@ -2,7 +2,7 @@
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 1.2.0
 
 ### Fixed
 
