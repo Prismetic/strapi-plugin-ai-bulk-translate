@@ -2,6 +2,27 @@
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.1
+
+Housekeeping for the marketplace listing. Nothing in the plugin's behaviour changes.
+
+### Security
+
+- **`undici` moves from 7.29.0 to 7.30.0**, clearing ten advisories against the 7.0.0–7.29.0 line.
+  It arrives transitively, through every `@ai-sdk/*` adapter and `ai` itself. The advisories were
+  never reachable from a fresh install — the AI SDK asks for `^7.29.0`, so npm has been resolving
+  the fixed version on its own since it was published, and this package does not ship a lockfile.
+  What was stale was *this* repository's lockfile, and therefore CI and anything installed from a
+  checkout. `npm audit --omit=dev` now reports no vulnerabilities. The remaining audit findings are
+  all in the dev tree, almost entirely `@strapi/strapi`, which is a peer dependency the host
+  provides rather than something this plugin installs.
+
+### Changed
+
+- **`strapi-plugin` and `strapi-v5` added to `keywords`**, so the package is findable by the terms
+  people actually search npm for. The package name is scoped, which keeps it out of a plain
+  `strapi-plugin-*` name search; this is the cheap half of that trade.
+
 ## 1.2.0
 
 ### Fixed

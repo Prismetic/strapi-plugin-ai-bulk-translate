@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/strapi-plugin-ai-bulk-translate",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Bulk AI translation for Strapi v5, with admin-managed providers and models",
   "license": "MIT",
   "author": "Prismetic",
