@@ -18,6 +18,8 @@
   "type": "commonjs",
   "keywords": [
     "strapi",
+    "strapi-plugin",
+    "strapi-v5",
     "plugin",
     "i18n",
     "localization",

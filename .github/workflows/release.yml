@@ -5,18 +5,20 @@
 # the `Release x.y.z` commit — rather than letting a mistyped tag mint a version nobody reviewed.
 #
 # There is no npm token. Authentication is npm Trusted Publishing: the job presents a short-lived
-# GitHub OIDC token, and npm checks it against a publisher configured on the package. Two things
-# make that work and both are load-bearing:
+# GitHub OIDC token, and npm checks it against a publisher configured on the package. Three things
+# make that work and all three are load-bearing:
 #
 #   - `id-token: write` below, which is what lets the runner mint the OIDC token at all.
 #   - The trusted publisher on npmjs.com naming this file, `release.yml`, exactly. Renaming this
 #     file breaks publishing until the publisher on npmjs.com is renamed to match.
+#   - The *absence* of `registry-url` on the setup-node step. See the comment there — it is the
+#     reason the first 1.2.0 attempt failed as a 404 rather than as an authentication error.
 #
 # No `--provenance` flag appears below, deliberately. npm attaches build provenance automatically
-# when both the package and the repository are public; this repository is internal, so there is no
-# public source for a provenance statement to point at and none is produced. If the repository is
-# ever made public, provenance starts appearing on its own — nothing here needs changing. If a
-# publish ever fails trying to generate one, `provenance=false` in .npmrc is the escape hatch.
+# when both the package and the repository are public, and both now are, so provenance is produced
+# without asking for it. A publish that predates the repository going public has none, which is why
+# 1.0.0 to 1.2.0 carry registry signatures but no attestation. If a publish ever fails trying to
+# generate one, `provenance=false` in .npmrc is the escape hatch.
 name: Release
 
 on:
@@ -44,13 +46,23 @@ jobs:
       # published is exactly what was tagged.
       - uses: actions/checkout@v4
 
+      # `registry-url` is deliberately absent. Setting it makes setup-node write an .npmrc holding
+      # `_authToken=${NODE_AUTH_TOKEN}`, and with no token supplied — there is none, by design —
+      # NODE_AUTH_TOKEN expands to setup-node's placeholder `XXXXX-XXXXX-XXXXX-XXXXX`. npm then has
+      # a credential to fall back on, so a failed OIDC exchange does not stop the publish: it sends
+      # the placeholder instead, and the registry answers `E404 Not Found - PUT` because it masks
+      # unauthorised writes to a scoped package rather than disclosing whether it exists. That 404
+      # is what the first 1.2.0 attempt reported, and it says nothing about the real cause.
+      #
+      # Without the .npmrc there is no fallback, so a broken publisher fails as an authentication
+      # error naming itself. npm publishes to registry.npmjs.org by default, and that is where the
+      # OIDC exchange goes, so nothing here needs the registry spelled out.
       - uses: actions/setup-node@v4
         with:
           # 24 rather than the 22 floor: Trusted Publishing needs npm 11.5.1+, and 24 is the line
           # that ships an 11.x npm. The plugin itself still supports 22 — that is what checks.yml
           # tests; this job only builds the tarball.
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
           cache: npm
 
       # Pinning the floor rather than trusting whatever npm the Node image happened to bundle.
@@ -111,10 +123,13 @@ jobs:
       # check that inspects what actually ships. So the tarball is built here, not earlier, and a
       # static import of the AI SDK fails the publish rather than reaching a host.
       # Verbose, because the Trusted Publishing exchange reports its failures only at that level.
-      # Without it a missing or mismatched publisher surfaces as a bare `E404 Not Found - PUT`,
-      # which says nothing about why — that is how the first 1.2.0 attempt failed. With it, the
-      # exchange's own message is in the log, under `npm verb oidc`. Nothing secret is printed:
-      # the id token is never logged, only the outcome of exchanging it.
+      # With it, the exchange's own message is in the log under `npm verb oidc`. Nothing secret is
+      # printed: the id token is never logged, only the outcome of exchanging it.
+      #
+      # This flag did **not** apply to the failed 1.2.0 run, even though it was on `main` before
+      # that release was published. A `release` event runs the workflow as it stands at the tag, so
+      # every change in this file reaches the *next* release and not the one being re-run. Expect a
+      # re-run of an old failure to behave like the old file, because it is the old file.
       - name: Publish
         if: steps.published.outputs.already == 'false'
         run: npm publish --loglevel verbose

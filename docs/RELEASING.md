@@ -44,6 +44,10 @@ short-lived GitHub OIDC token and npm checks it against a publisher configured o
 means nothing to rotate and no secret to leak — but it also means the publisher below must exist
 before anything can be released.
 
+**A change to a workflow file reaches the next release, not the one being re-run.** A `release`
+event runs the workflow as it stands at the tag. So a fix to `release.yml` cannot be tested by
+re-running the failure it was written for; the re-run uses the old file.
+
 ## One-time setup
 
 On npmjs.com, under the package → **Settings** → **Trusted Publisher** → **GitHub Actions**:
@@ -56,11 +60,17 @@ On npmjs.com, under the package → **Settings** → **Trusted Publisher** → *
 | Workflow filename    | `release.yml`                     |
 
 
+Leave **Environment** empty — the job declares none, and a value here will not match.
+
 All three are case-sensitive and matched exactly. Needs an npm login with maintainer rights on the
 package.
 
 **Renaming** `.github/workflows/release.yml` **breaks publishing** until the publisher is renamed to
 match. The filename is part of the credential.
+
+This is the one step nothing in the repository can do for you, and until it is done every automated
+publish fails. 1.0.0 to 1.2.0 were all published by hand from a maintainer's laptop, which is why
+they carry registry signatures but no provenance attestation.
 
 ## Releasing a change
 
@@ -121,14 +131,27 @@ npm view @prismetic/strapi-plugin-ai-bulk-translate version
 
 ## When something goes wrong
 
-**The publish step fails with** `E404 Not Found - PUT https://registry.npmjs.org/@prismetic%2f…`
-**or an authentication error.** The trusted publisher is missing, or one of its three fields does
-not match exactly, or an **Environment** was filled in on npmjs.com (leave it empty — the workflow
-uses none). npm then falls back to the placeholder token `setup-node` writes, and the registry
-answers 404 rather than 401. The log line `npm verb oidc …` says what the exchange itself returned.
-Fix it on npmjs.com, then **re-run the failed job** from Actions. The release and tag already exist
-and nothing needs redoing — the re-run picks up from the failure. Note that a re-run uses the
-workflow file as it was at the tag, so a fix to the workflow itself only applies to the next release.
+**The publish step fails with an authentication error.** The trusted publisher is missing, or one of
+its three fields does not match exactly, or an **Environment** was filled in on npmjs.com. Fix it on
+npmjs.com, then **re-run the failed job** from Actions. The release and tag already exist and nothing
+needs redoing — the re-run picks up from the failure. The log line `npm verb oidc …` says what the
+exchange itself returned.
+
+**The publish step fails with** `E404 Not Found - PUT https://registry.npmjs.org/@prismetic%2f…`.
+Same cause, worse disguise, and it should no longer be possible — but this is what it looked like
+and why, because the shape recurs wherever `setup-node` meets Trusted Publishing.
+
+`setup-node` writes an `.npmrc` containing `_authToken=${NODE_AUTH_TOKEN}` whenever `registry-url`
+is set. No token is supplied here by design, so `NODE_AUTH_TOKEN` expands to setup-node's own
+placeholder, `XXXXX-XXXXX-XXXXX-XXXXX` — visible in the job's env block. npm therefore has a
+credential to fall back on when the OIDC exchange fails, sends the placeholder, and the registry
+answers **404 rather than 401**: npm masks unauthorised writes to a scoped package instead of
+disclosing whether it exists. The result is a missing trusted publisher reported as a missing
+package.
+
+`registry-url` has been removed from the workflow for exactly this reason. Without the `.npmrc`
+there is no fallback, so the same misconfiguration now fails as an authentication error that names
+itself. If you ever add `registry-url` back, this failure mode comes back with it.
 
 `Release tag 'v…' does not match package.json version '…'`**.** They disagree. Delete the release,
 delete its tag, fix the release commit, and go back to step 3:
@@ -148,6 +171,7 @@ else to clean up. Fix and re-run step 3.
 instead, and `npm deprecate` the bad version if it needs to carry a warning.
 
 **Provenance.** npm attaches build provenance only when the package *and* the repository are public.
-This repository is internal, so none is produced and none is expected. If it is ever made public,
-provenance starts appearing on its own. If a publish ever fails trying to generate one,
-`provenance=false` in `.npmrc` is the escape hatch.
+Both now are, so provenance is produced without asking for it — from the first release published by
+the workflow rather than by hand. 1.0.0 to 1.2.0 have none, and cannot acquire it; a published
+version is immutable. If a publish ever fails trying to generate one, `provenance=false` in
+`.npmrc` is the escape hatch.
