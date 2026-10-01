@@ -121,9 +121,14 @@ npm view @prismetic/strapi-plugin-ai-bulk-translate version
 
 ## When something goes wrong
 
-**The publish step fails on authentication.** The trusted publisher is missing, or one of its three
-fields does not match exactly. Fix it on npmjs.com, then **re-run the failed job** from Actions. The
-release and tag already exist and nothing needs redoing — the re-run picks up from the failure.
+**The publish step fails with** `E404 Not Found - PUT https://registry.npmjs.org/@prismetic%2f…`
+**or an authentication error.** The trusted publisher is missing, or one of its three fields does
+not match exactly, or an **Environment** was filled in on npmjs.com (leave it empty — the workflow
+uses none). npm then falls back to the placeholder token `setup-node` writes, and the registry
+answers 404 rather than 401. The log line `npm verb oidc …` says what the exchange itself returned.
+Fix it on npmjs.com, then **re-run the failed job** from Actions. The release and tag already exist
+and nothing needs redoing — the re-run picks up from the failure. Note that a re-run uses the
+workflow file as it was at the tag, so a fix to the workflow itself only applies to the next release.
 
 `Release tag 'v…' does not match package.json version '…'`**.** They disagree. Delete the release,
 delete its tag, fix the release commit, and go back to step 3:

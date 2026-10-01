@@ -110,6 +110,11 @@ jobs:
       # `prepublishOnly` runs the build, and `postbuild` runs the ESM boundary assertion — the one
       # check that inspects what actually ships. So the tarball is built here, not earlier, and a
       # static import of the AI SDK fails the publish rather than reaching a host.
+      # Verbose, because the Trusted Publishing exchange reports its failures only at that level.
+      # Without it a missing or mismatched publisher surfaces as a bare `E404 Not Found - PUT`,
+      # which says nothing about why — that is how the first 1.2.0 attempt failed. With it, the
+      # exchange's own message is in the log, under `npm verb oidc`. Nothing secret is printed:
+      # the id token is never logged, only the outcome of exchanging it.
       - name: Publish
         if: steps.published.outputs.already == 'false'
-        run: npm publish
+        run: npm publish --loglevel verbose
