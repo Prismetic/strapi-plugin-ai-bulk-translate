@@ -10,3 +10,14 @@ dist/
 coverage/
 .host-builds/
 *.tgz
+
+# Local tooling and internal working notes. These live on a maintainer's machine and are
+# deliberately not published; listed here so they cannot be committed back by accident.
+.claude/
+.sandcastle/
+CLAUDE.md
+CONVENTIONS.md
+workflow.config.json
+workflow.config.example.jsonc
+docs/handoffs/
+docs/IMPLEMENTATION-PLAN.md

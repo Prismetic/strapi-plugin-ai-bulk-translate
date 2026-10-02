@@ -14,8 +14,9 @@ const state: {
 
 /**
  * The hook is replaced outright rather than partially: importing the real module pulls in
- * '@strapi/strapi/admin', whose lodash imports Node's ESM resolver refuses — the mispackaging
- * CONVENTIONS.md records. Mock the boundary; do not reach through it.
+ * '@strapi/strapi/admin', whose lodash imports Node's ESM resolver refuses (it resolves a
+ * directory, which `ERR_UNSUPPORTED_DIR_IMPORT` rejects). Mock the boundary; do not reach
+ * through it.
  */
 /** Records what the page asked for, so the filter's effect is observable rather than assumed. */
 const asked: { statuses: string[]; page: number }[] = [];

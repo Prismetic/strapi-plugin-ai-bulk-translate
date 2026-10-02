@@ -1,6 +1,6 @@
-# The four commands under `feedback` in workflow.config.json, in the order they appear there.
-# CI and the local loop run the same checks on purpose: if they drift, the AFK loop starts
-# committing work that CI then rejects.
+# install, typecheck, test, build — in that order, and the same order they run locally before a
+# commit. CI and the local sequence are kept identical on purpose: if they drift, work gets
+# committed locally that CI then rejects.
 name: Checks
 
 on:
