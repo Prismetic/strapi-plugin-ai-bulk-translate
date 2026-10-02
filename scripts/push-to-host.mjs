@@ -21,7 +21,7 @@
  *
  * Usage:
  *   node scripts/push-to-host.mjs <host-path>     # or set PLUGIN_HOST
- *   npm run push -- "../CMS multi-locale"
+ *   npm run push -- "../my-strapi-host"
  *
  * Flags:
  *   --no-build     install the current dist/ without rebuilding
@@ -61,8 +61,8 @@ const hostArg = positional[0] ?? process.env.PLUGIN_HOST;
 if (!hostArg) {
   die(
     'No host given. Pass the host project path, or set PLUGIN_HOST:\n' +
-      '    npm run push -- "../CMS multi-locale"\n' +
-      '    export PLUGIN_HOST="../CMS multi-locale"'
+      '    npm run push -- "../my-strapi-host"\n' +
+      '    export PLUGIN_HOST="../my-strapi-host"'
   );
 }
 

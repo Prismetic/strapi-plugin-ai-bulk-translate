@@ -30,10 +30,10 @@ describe('fallbackTitle', () => {
   it('names a single type by its content type', () => {
     expect(
       fallbackTitle(
-        { kind: 'singleType', info: { displayName: 'MosBuild_Homepage' } } as never,
+        { kind: 'singleType', info: { displayName: 'Homepage' } } as never,
         'e5e8ckg9xx3wvglzkln1uy1h'
       )
-    ).toBe('MosBuild_Homepage');
+    ).toBe('Homepage');
   });
 
   it('names a collection-type entry by its identifier', () => {

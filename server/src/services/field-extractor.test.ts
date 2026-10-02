@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { extractFields, type ComponentSchemas, type ExtractorSchema } from './field-extractor';
 
 /**
- * Modelled on `api::page.page` from the CMS multi-locale host: a localized string, a deliberately
- * non-localized one, a component holding text and media, a dynamic zone, and the field types the
- * extractor must never send to a model.
+ * Modelled on a real `api::page.page`: a localized string, a deliberately non-localized one, a
+ * component holding text and media, a dynamic zone, and the field types the extractor must never
+ * send to a model.
  */
 const pageSchema: ExtractorSchema = {
   attributes: {
